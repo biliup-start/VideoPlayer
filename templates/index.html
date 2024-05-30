@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>视频播放器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <style>
+        .video-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        .video-item {
+            position: relative;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .video-wrapper {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            height: 0;
+            overflow: hidden;
+        }
+        .video-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .delete-button {
+            display: block;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <form id="video-form">
+        <input type="text" id="video_link" placeholder="请输入视频链接" required>
+        <button type="submit">添加视频</button>
+        <button type="button" id="play-all">播放所有</button>
+        <button type="button" id="pause-all">暂停所有</button>
+    </form>
+    <div class="video-container" id="video-container">
+        {% for video_link in video_links %}
+            <div class="video-item">
+                <div class="video-wrapper">{{ video_link.link|safe }}</div>
+                <button class="delete-button" data-id="{{ video_link.id }}">删除</button>
+            </div>
+        {% endfor %}
+    </div>
+    <script>
+        var videoLinks = [];
+
+        $("#video-form").submit(function(e) {
+            e.preventDefault();
+            $.post("/add_video", {video_link: $("#video_link").val()}, function(data) {
+                $("#video-container").append('<div class="video-item"><div class="video-wrapper">' + data.link + '</div><button class="delete-button" data-id="' + data.id + '">删除</button></div>');
+                $("#video_link").val('');
+            });
+        });
+
+        $(document).on("click", ".delete-button", function() {
+            var idToRemove = $(this).data("id");
+            $(this).parent().remove();
+            $.post("/delete_video", {video_id: idToRemove});
+        });
+
+        $("#play-all").click(function() {
+            for (var i = 0; i < videoLinks.length; i++) {
+                $("#video-container").append('<div class="video-item"><div class="video-wrapper">' + videoLinks[i] + '</div><button class="delete-button" data-id="' + videoLinks[i] + '">删除</button></div>');
+            }
+            videoLinks = [];
+        });
+
+        $("#pause-all").click(function() {
+            $(".video-wrapper iframe").each(function() {
+                videoLinks.push($(this).parent().html());
+                $(this).parent().parent().remove();
+            });
+        });
+    </script>
+</body>
+</html>
