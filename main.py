@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, jsonify
+from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 import re
 
@@ -23,13 +23,27 @@ def home():
 @app.route('/add_video', methods=['POST'])
 def add_video():
     raw_link = request.form.get('video_link')
-    match = re.match(r'https://live\.bilibili\.com/(\d+)', raw_link)
-    if match:
-        cid = match.group(1)
-        iframe_link = f'<div class="video-wrapper"><iframe src="https://www.bilibili.com/blackboard/live/live-activity-player.html?enterTheRoom=0&cid={cid}&autoplay=0" frameborder="no" framespacing="0" scrolling="no" allow="autoplay; encrypted-media" allowfullscreen="true"></iframe></div>'
+    # 检查输入是否只包含数字
+    if raw_link.isdigit():
+        # Bilibili直播间的ID
+        cid = raw_link
+        iframe_link = f'<div class="video-wrapper"><iframe src="https://www.bilibili.com/blackboard/live/live-activity-player.html?enterTheRoom=0&cid={cid}&autoplay=0&mute=1" frameborder="no" framespacing="0" scrolling="no" allow="autoplay; encrypted-media" allowfullscreen="true"></iframe></div>'
         video_link = VideoLink(link=iframe_link)
     else:
-        video_link = VideoLink(link=raw_link)
+        # 检查输入是否为Bilibili链接
+        match_bili = re.match(r'https://live\.bilibili\.com/(\d+)', raw_link)
+        # 检查输入是否为虎牙链接
+        match_huya = re.match(r'https://www\.huya\.com/(\d+)', raw_link)
+        if match_bili:
+            cid = match_bili.group(1)
+            iframe_link = f'<div class="video-wrapper"><iframe src="https://www.bilibili.com/blackboard/live/live-activity-player.html?enterTheRoom=0&cid={cid}&autoplay=0&mute=1" frameborder="no" framespacing="0" scrolling="no" allow="autoplay; encrypted-media" allowfullscreen="true"></iframe></div>'
+            video_link = VideoLink(link=iframe_link)
+        elif match_huya:
+            cid = match_huya.group(1)
+            iframe_link = f'<iframe width="100%" height="100%"  frameborder="0" scrolling="no" src="https://liveshare.huya.com/iframe/{cid}"></iframe>'
+            video_link = VideoLink(link=iframe_link)
+        else:
+            video_link = VideoLink(link=raw_link)
     db.session.add(video_link)
     db.session.commit()
     return jsonify(id=video_link.id, link=video_link.link)
@@ -43,6 +57,11 @@ def delete_video():
         db.session.commit()
     return jsonify(success=True)
 
+@app.route('/delete_all_videos', methods=['POST'])
+def delete_all_videos():
+    VideoLink.query.delete()
+    db.session.commit()
+    return jsonify(success=True)
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True, port=5002)
-    
+    app.run(debug=True, port=5002)
