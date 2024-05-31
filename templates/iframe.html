@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iframe 官方内嵌直播播放器</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <style>
+        .video-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .video-item {
+            position: relative;
+            flex-grow: 1;
+            min-width: 350px;  /* 最小宽度 */
+            min-height: 196.875px;  /* 最小高度，保持16:9比例 */
+            aspect-ratio: 16 / 9;
+            box-sizing: border-box;
+            margin: 10px;
+        }
+
+        .video-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .video-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .delete-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.7); /* 透明样式 */
+            border: none;
+            cursor: pointer;
+        }
+
+        .delete-button:hover {
+            background: rgba(255, 255, 255, 1); /* 悬停效果 */
+        }
+    </style>
+</head>
+<body>
+    <form id="video-form" style="display: flex; justify-content: center; align-items: center;">
+        <input type="text" id="iframe_link" placeholder="请输入视频链接" required style="margin-right: 10px;">
+        <button type="submit" style="margin-right: 10px;">添加视频</button>
+        <button type="button" id="play-all" style="margin-right: 10px;">播放所有</button>
+        <button type="button" id="pause-all" style="margin-right: 10px;">暂停所有</button>
+        <button type="button" id="delete-all">清除所有</button>
+    </form>
+    <div class="video-container" id="video-container">
+        {% for iframe_link in iframe_links %}
+            <div class="video-item">
+                <div class="video-wrapper">{{ iframe_link.link|safe }}</div>
+                <button class="delete-button" data-id="{{ iframe_link.id }}">删除</button>
+            </div>
+        {% else %}
+            <p>No iframe links found.</p>
+        {% endfor %}
+    </div>
+    <script>
+        var videoLinks = [];
+
+        function adjustVideoSize() {
+            var videoCount = $(".video-item").length;
+            var containerWidth = $("#video-container").width();
+            var containerHeight = $(window).height() - $("#video-form").outerHeight(true);
+            var itemWidth = Math.max(containerWidth / Math.ceil(Math.sqrt(videoCount)) * 4.757 / 6, 350);  // 计算宽度且不小于300px
+            var itemHeight = itemWidth * 0.5625;  // 16:9比例
+
+            $(".video-item").each(function() {
+                $(this).css({
+                    "flex": `0 0 ${itemWidth}px`,
+                    "height": `${itemHeight}px`
+                });
+            });
+        }
+
+        $("#video-form").submit(function(e) {
+            e.preventDefault();
+            $.post("/add_video_iframe", {iframe_link: $("#iframe_link").val()}, function(data) {
+                $("#video-container").append('<div class="video-item"><div class="video-wrapper">' + data.link + '</div><button class="delete-button" data-id="' + data.id + '">删除</button></div>');
+                $("#iframe_link").val('');
+                adjustVideoSize();
+            });
+        });
+
+        $(document).on("click", ".delete-button", function() {
+            var idToRemove = $(this).data("id");
+            $(this).parent().remove();
+            $.post("/delete_video_iframe", {iframe_id: idToRemove});
+            adjustVideoSize();
+        });
+
+        $("#delete-all").click(function() {
+            $.post("/delete_all_videos", function() {
+                $(".video-item").remove();
+            });
+        });
+
+        $("#play-all").click(function() {
+            for (var i = 0; i < videoLinks.length; i++) {
+                var videoItem = $(videoLinks[i]);
+                var videoId = videoItem.find(".delete-button").data("id");
+                if ($("#video-container").find("[data-id='" + videoId + "']").length === 0) {
+                    $("#video-container").append('<div class="video-item">' + videoLinks[i] + '</div>');
+                }
+            }
+            videoLinks = [];
+            adjustVideoSize();
+        });
+
+        $("#pause-all").click(function() {
+            $(".video-item").each(function() {
+                videoLinks.push($(this).html());
+                $(this).remove();
+            });
+            adjustVideoSize();
+        });
+
+        $(window).resize(adjustVideoSize);
+
+        // Initial adjustment
+        adjustVideoSize();
+    </script>
+</body>
+</html>

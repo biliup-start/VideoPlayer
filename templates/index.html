@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>视频播放器</title>
+    <title>直播流播放器</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flv.js/dist/flv.min.js"></script>
     <style>
         .video-container {
             display: flex;
@@ -14,26 +16,17 @@
 
         .video-item {
             position: relative;
-            flex-grow: 1;
-            min-width: 350px;  /* 最小宽度 */
-            min-height: 196.875px;  /* 最小高度，保持16:9比例 */
-            aspect-ratio: 16 / 9;
             box-sizing: border-box;
             margin: 10px;
         }
 
         .video-wrapper {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: relative;
+            width: 640px;  /* 初始宽度 */
+            height: 360px;  /* 初始高度 */
         }
 
-        .video-wrapper iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
+        video {
             width: 100%;
             height: 100%;
         }
@@ -64,35 +57,50 @@
     <div class="video-container" id="video-container">
         {% for video_link in video_links %}
             <div class="video-item">
-                <div class="video-wrapper">{{ video_link.link|safe }}</div>
+                <div class="video-wrapper">
+                    <video id="video{{ video_link.id }}" controls></video>
+                </div>
                 <button class="delete-button" data-id="{{ video_link.id }}">删除</button>
             </div>
         {% endfor %}
     </div>
     <script>
-        var videoLinks = [];
+        function initializeFlvPlayer(elementId, url) {
+            if (flvjs.isSupported()) {
+                var videoElement = document.getElementById(elementId);
+                var flvPlayer = flvjs.createPlayer({
+                    type: 'flv',
+                    url: url
+                });
+                flvPlayer.attachMediaElement(videoElement);
+                flvPlayer.load();
+                flvPlayer.on('loadedmetadata', function() {
+                    adjustVideoSize();  // 加载完成后调整播放器大小
+                });
+            }
+        }
 
         function adjustVideoSize() {
-            var videoCount = $(".video-item").length;
-            var containerWidth = $("#video-container").width();
-            var containerHeight = $(window).height() - $("#video-form").outerHeight(true);
-            var itemWidth = Math.max(containerWidth / Math.ceil(Math.sqrt(videoCount)) * 4.757 / 6, 350);  // 计算宽度且不小于300px
-            var itemHeight = itemWidth * 0.5625;  // 16:9比例
-
-            $(".video-item").each(function() {
-                $(this).css({
-                    "flex": `0 0 ${itemWidth}px`,
-                    "height": `${itemHeight}px`
-                });
+            var containerWidth = $(".video-wrapper").width();
+            var containerHeight = containerWidth * 9 / 16;  // 16:9 比例
+            $(".video-wrapper").css({
+                height: containerHeight + "px"
             });
         }
 
         $("#video-form").submit(function(e) {
             e.preventDefault();
             $.post("/add_video", {video_link: $("#video_link").val()}, function(data) {
-                $("#video-container").append('<div class="video-item"><div class="video-wrapper">' + data.link + '</div><button class="delete-button" data-id="' + data.id + '">删除</button></div>');
-                $("#video_link").val('');
-                adjustVideoSize();
+                var newVideoItem = `
+                    <div class="video-item">
+                        <div class="video-wrapper">
+                            <video id="video${data.id}" controls></video>
+                        </div>
+                        <button class="delete-button" data-id="${data.id}">删除</button>
+                    </div>
+                `;
+                $("#video-container").append(newVideoItem);
+                initializeFlvPlayer(`video${data.id}`, data.link);
             });
         });
 
@@ -100,7 +108,6 @@
             var idToRemove = $(this).data("id");
             $(this).parent().remove();
             $.post("/delete_video", {video_id: idToRemove});
-            adjustVideoSize();
         });
 
         $("#delete-all").click(function() {
@@ -109,30 +116,12 @@
             });
         });
 
-        $("#play-all").click(function() {
-            for (var i = 0; i < videoLinks.length; i++) {
-                var videoItem = $(videoLinks[i]);
-                var videoId = videoItem.find(".delete-button").data("id");
-                if ($("#video-container").find("[data-id='" + videoId + "']").length === 0) {
-                    $("#video-container").append('<div class="video-item">' + videoLinks[i] + '</div>');
-                }
-            }
-            videoLinks = [];
-            adjustVideoSize();
+        $(document).ready(function() {
+            {% for video_link in video_links %}
+                initializeFlvPlayer("video{{ video_link.id }}", "{{ video_link.link }}");
+            {% endfor %}
+            adjustVideoSize();  // 页面加载完成后调整播放器大小
         });
-
-        $("#pause-all").click(function() {
-            $(".video-item").each(function() {
-                videoLinks.push($(this).html());
-                $(this).remove();
-            });
-            adjustVideoSize();
-        });
-
-        $(window).resize(adjustVideoSize);
-
-        // Initial adjustment
-        adjustVideoSize();
     </script>
 </body>
 </html>
