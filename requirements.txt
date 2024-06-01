@@ -1,3 +1,6 @@
 Flask
 flask_sqlalchemy
 requests
+streamlink
+lxml
+PyExecJS
