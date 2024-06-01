@@ -68,11 +68,11 @@ class FFprobe():
         
     @classmethod
     def get_resolution(cls, url:str, header=None) -> tuple:
-        if url.startswith('http'):
-            res = cls.run_ffprobe_livestream(url, header)
-        else:
-            res = cls.run_ffprobe(url)
         try:
+            if url.startswith('http'):
+                res = cls.run_ffprobe_livestream(url, header)
+            else:
+                res = cls.run_ffprobe(url)
             resolution = res['streams'][0]['width'],res['streams'][0]['height']
             return resolution
         except:
