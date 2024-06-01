@@ -43,14 +43,14 @@ class bilibili(BaseAPI):
                 return False
 
     def get_stream_urls(self, bili_watch_cookies=None, **kwargs) -> dict:
-        bili_watch_cookies = bili_watch_cookies or 'login_info/bilibili.json'
+        bili_watch_cookies = bili_watch_cookies or 'biliup/cookies.json'
         watch_cookies = {}
         if bili_watch_cookies.lower() != 'none':
             try:
-                if not os.path.exists(bili_watch_cookies) and os.path.exists('login_info/bilibili.json'):
-                    bili_watch_cookies = 'login_info/bilibili.json'
+                if not os.path.exists(bili_watch_cookies) and os.path.exists('biliup/cookies.json'):
+                    bili_watch_cookies = 'biliup/cookies.json'
                 elif not os.path.exists(bili_watch_cookies):
-                    from DMR.Uploader.biliuprs import biliuprs
+                    from biliup.biliuprs import biliuprs
                     logger.info(f'即将登录用于B站获取直播流的账号，如果不想登录请设置bili_watch_cookies为空.')
                     biliuprs(cookies=bili_watch_cookies)
                 with open(bili_watch_cookies, 'r') as f:

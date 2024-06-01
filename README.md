@@ -14,6 +14,6 @@
 
 2.项目调用api是取自 [SmallPeaches/DanmakuRender](https://github.com/SmallPeaches/DanmakuRender)       
 
-3.项目需要用到cookie请下载→获取→替换（程序目录/login_info/bilibili.json） [biliup/biliup-rs](https://github.com/biliup/biliup-rs/releases)     
+3.项目需要用到Biliuprs和登录获取cookie（主目录/biliup/二进制包和cookies.json） [biliup/biliup-rs](https://github.com/biliup/biliup-rs/releases)     
 
 4.依赖安装可能出错（用到的api依赖没有看反正我能用），出错自行ai安装依赖。
