@@ -4,7 +4,7 @@ import queue
 import time
 from concurrent.futures import ThreadPoolExecutor
 from os.path import join, exists
-from import *
+from api import *
 from biliup.utils import *
 
 class Uploader():
