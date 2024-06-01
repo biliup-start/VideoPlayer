@@ -60,7 +60,8 @@
         <button type="submit" style="margin-right: 10px;">添加视频</button>
         <button type="button" id="play-all" style="margin-right: 10px;">播放所有</button>
         <button type="button" id="pause-all" style="margin-right: 10px;">暂停所有</button>
-        <button type="button" id="delete-all">清除所有</button>
+        <button type="button" id="delete-all" style="margin-right: 10px;">清除所有</button>
+        <button type="button" id="delete-all" onclick="location.href='./'">切换首页</button>
     </form>
     <div class="video-container" id="video-container">
         {% for iframe_link in iframe_links %}
@@ -68,8 +69,6 @@
                 <div class="video-wrapper">{{ iframe_link.link|safe }}</div>
                 <button class="delete-button" data-id="{{ iframe_link.id }}">删除</button>
             </div>
-        {% else %}
-            <p>No iframe links found.</p>
         {% endfor %}
     </div>
     <script>

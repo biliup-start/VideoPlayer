@@ -83,14 +83,21 @@ def handle_bilibili(raw_link):
     return None
 
 # 检查输入是否只包含数字
-def handle_numeric(raw_link):
+def handle_numeric_bilibili(raw_link):
     if raw_link.isdigit():
         bilibili_link = f'https://live.bilibili.com/{raw_link}'
         stream_url = handle_bilibili(bilibili_link)
-        iframe_url = iframe_bilibili(bilibili_link)
-        return stream_url, iframe_url
+        return stream_url
     else:
-        return None, None
+        return None
+
+def handle_numeric_iframe(raw_link):
+    if raw_link.isdigit():
+        bilibili_link = f'https://live.bilibili.com/{raw_link}'
+        iframe_url = iframe_bilibili(bilibili_link)
+        return iframe_url
+    else:
+        return None
 
 # 定义处理iframe直播链接的函数
 def iframe_huya(raw_link):
@@ -123,9 +130,17 @@ def iframe():
 @app.route('/add_video', methods=['POST'])
 def add_video():
     raw_link = request.form.get('video_link')
-    bilibili_link = f'https://live.bilibili.com/{raw_link}'
-    stream_url = handle_bilibili(bilibili_link)
-    if stream_url and isinstance(stream_url, str):  # 确保stream_url是一个字符串
+    stream_url = (
+        handle_huya(raw_link) or 
+        handle_douyu(raw_link) or 
+        handle_twitch(raw_link) or 
+        handle_douyin(raw_link) or 
+        handle_cc(raw_link) or 
+        handle_bilibili(raw_link) or 
+        handle_numeric_bilibili(raw_link) or  
+        raw_link  
+    )
+    if stream_url:
         video_link = VideoLink(link=stream_url)
         db.session.add(video_link)
         db.session.commit()
@@ -136,24 +151,19 @@ def add_video():
 @app.route('/add_video_iframe', methods=['POST'])
 def add_video_iframe():
     raw_link = request.form.get('iframe_link')
-    bilibili_link = f'https://live.bilibili.com/{raw_link}'
-    iframe_url = iframe_bilibili(bilibili_link)
-    if iframe_url and isinstance(iframe_url, str):  # 确保iframe_url是一个字符串
-        iframe_link = iframeLink(link=iframe_url)
+    stream_url = (
+        iframe_huya(raw_link) or 
+        iframe_bilibili(raw_link) or 
+        handle_numeric_iframe(raw_link) or 
+        raw_link  
+    )
+    if stream_url:
+        iframe_link = iframeLink(link=stream_url)
         db.session.add(iframe_link)
         db.session.commit()
         return jsonify(id=iframe_link.id, link=iframe_link.link)
     else:
         return jsonify(error="无法获取 iframe 链接"), 400
-
-@app.route('/delete_video', methods=['POST'])
-def delete_video():
-    video_id = request.form.get('video_id')
-    video_link = db.session.get(VideoLink, video_id)
-    if video_link:
-        db.session.delete(video_link)
-        db.session.commit()
-    return jsonify(success=True)
 
 @app.route('/delete_video_iframe', methods=['POST'])
 def delete_video_iframe():
@@ -161,6 +171,15 @@ def delete_video_iframe():
     iframe_link = db.session.get(iframeLink, iframe_id)
     if iframe_link:
         db.session.delete(iframe_link)
+        db.session.commit()
+    return jsonify(success=True)
+
+@app.route('/delete_video', methods=['POST'])
+def delete_video():
+    video_id = request.form.get('video_id')
+    video_link = db.session.get(VideoLink, video_id)
+    if video_link:
+        db.session.delete(video_link)
         db.session.commit()
     return jsonify(success=True)
 
