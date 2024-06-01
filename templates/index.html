@@ -7,6 +7,7 @@
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flv.js/dist/flv.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         .video-container {
             display: flex;
@@ -18,6 +19,7 @@
             position: relative;
             box-sizing: border-box;
             margin: 10px;
+            flex-basis: calc(100% / 3);  
         }
 
         .video-wrapper {
@@ -53,7 +55,7 @@
         <button type="button" id="play-all" style="margin-right: 10px;">播放所有</button>
         <button type="button" id="pause-all" style="margin-right: 10px;">暂停所有</button>
         <button type="button" id="delete-all" style="margin-right: 10px;">清除所有</button>
-        <button type="button" id="delete-all" onclick="location.href='./iframe.html'">切换iframe</button>
+        <button type="button" id="switch-iframe" style="margin-right: 10px;" onclick="location.href='./iframe.html'">切换iframe</button>
     </form>
     <div class="video-container" id="video-container">
         {% for video_link in video_links %}
@@ -84,6 +86,7 @@
 
         function initializeFlvPlayer(elementId, url) {
             if (flvjs.isSupported()) {
+                console.log(`Initializing FLV player for ${elementId} with URL: ${url}`);
                 var videoElement = document.getElementById(elementId);
                 var flvPlayer = flvjs.createPlayer({
                     type: 'flv',
@@ -94,20 +97,60 @@
                 flvPlayer.on('loadedmetadata', function() {
                     adjustVideoSize();  // 加载完成后调整播放器大小
                 });
+            } else {
+                console.log('FLV.js is not supported');
             }
         }
 
-        function adjustVideoSize() {
-            var containerWidth = $(".video-wrapper").width();
-            var containerHeight = containerWidth * 9 / 16;  // 16:9 比例
-            $(".video-wrapper").css({
-                height: containerHeight + "px"
-            });
+        function initializeHlsPlayer(elementId, url) {
+            var videoElement = document.getElementById(elementId);
+            if (Hls.isSupported()) {
+                console.log(`Initializing HLS player for ${elementId} with URL: ${url}`);
+                var hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(videoElement);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    console.log(`HLS manifest loaded for ${elementId}`);
+                    videoElement.play();
+                    adjustVideoSize();  // 加载完成后调整播放器大小
+                });
+                hls.on(Hls.Events.ERROR, function(event, data) {
+                    console.error(`HLS error for ${elementId}: ${data.type} - ${data.details}`);
+                });
+            } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+                console.log(`Native HLS support for ${elementId} with URL: ${url}`);
+                videoElement.src = url;
+                videoElement.addEventListener('loadedmetadata', function() {
+                    adjustVideoSize();  // 加载完成后调整播放器大小
+                });
+                videoElement.play();
+            } else {
+                console.log('HLS.js is not supported');
+            }
+        }
+
+        function getFormat(url) {
+            const pattern = /\.([0-9a-z]+)(?:[\?&]|$)/i;
+            const match = url.match(pattern);
+            return match ? match[1].toLowerCase() : '';
+        }
+
+        function initializePlayer(elementId, url) {
+            var format = getFormat(url);  // 从视频链接中获取格式
+            console.log(`Initializing player for ${elementId} with URL: ${url} and format: ${format}`);
+            if (format === 'flv') {
+                initializeFlvPlayer(elementId, url);
+            } else if (format === 'm3u8') {
+                initializeHlsPlayer(elementId, url);
+            } else {
+                console.log(`Unsupported format: ${format} for URL: ${url}`);
+            }
         }
 
         $("#video-form").submit(function(e) {
             e.preventDefault();
-            $.post("/add_video", {video_link: $("#video_link").val()}, function(data) {
+            var videoLink = $("#video_link").val();
+            $.post("/add_video", {video_link: videoLink}, function(data) {
                 var newVideoItem = `
                     <div class="video-item">
                         <div class="video-wrapper">
@@ -117,7 +160,7 @@
                     </div>
                 `;
                 $("#video-container").append(newVideoItem);
-                initializeFlvPlayer(`video${data.id}`, data.link);
+                initializePlayer(`video${data.id}`, data.link);
             });
         });
 
@@ -133,11 +176,23 @@
             });
         });
 
+        $("#play-all").click(function() {
+            $("video").each(function() {
+                this.play();
+            });
+        });
+
+        $("#pause-all").click(function() {
+            $("video").each(function() {
+                this.pause();
+            });
+        });
+
         $(document).ready(function() {
             $.get("/get_video_links", function(data) {
                 for (var i = 0; i < data.length; i++) {
                     var video_link = data[i];
-                    initializeFlvPlayer("video" + video_link.id, video_link.link);
+                    initializePlayer("video" + video_link.id, video_link.link);
                 }
                 adjustVideoSize();  // 页面加载完成后调整播放器大小
             });

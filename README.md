@@ -12,7 +12,7 @@
 
 1.本项目部分是GPT写的可能存在问题不保证   
 
-2.项目需要用到cookie请下载 [biliup/biliup-rs](https://github.com/biliup/biliup-rs/releases)     
+2.项目需要用到cookie请下载→获取→替换（程序目录/login_info/bilibili.json） [biliup/biliup-rs](https://github.com/biliup/biliup-rs/releases)     
 
 3.项目调用api是取自 [SmallPeaches/DanmakuRender](https://github.com/SmallPeaches/DanmakuRender)       
 
