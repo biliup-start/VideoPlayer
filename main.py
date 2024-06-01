@@ -59,7 +59,7 @@ def handle_twitch(raw_link):
     return None
 
 def handle_douyin(raw_link):
-    match_douyin = re.match(r'https://www\.douyin\.com/(\w+)', raw_link)
+    match_douyin = re.match(r'https://live\.douyin\.com/(\w+)', raw_link)
     if match_douyin:
         rid = match_douyin.group(1)
         api = douyin(rid)
