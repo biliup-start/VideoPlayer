@@ -4,3 +4,4 @@ requests
 streamlink
 lxml
 PyExecJS
+easydict
