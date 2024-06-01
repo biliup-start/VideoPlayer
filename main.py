@@ -35,7 +35,7 @@ with app.app_context():
 
 # 定义处理各个平台的函数
 def handle_huya(raw_link):
-    match_huya = re.match(r'https://www\.huya\.com/(\d+)', raw_link)
+    match_huya = re.match(r'https://www\.huya\.com/(\w+)', raw_link)
     if match_huya:
         rid = match_huya.group(1)
         api = huya(rid)
@@ -59,7 +59,7 @@ def handle_twitch(raw_link):
     return None
 
 def handle_douyin(raw_link):
-    match_douyin = re.match(r'https://www\.douyin\.com/(\d+)', raw_link)
+    match_douyin = re.match(r'https://www\.douyin\.com/(\w+)', raw_link)
     if match_douyin:
         rid = match_douyin.group(1)
         api = douyin(rid)
@@ -67,7 +67,7 @@ def handle_douyin(raw_link):
     return None
 
 def handle_cc(raw_link):
-    match_cc = re.match(r'https://cc.163.com/(\d+)', raw_link)
+    match_cc = re.match(r'https://cc.163.com/(\w+)', raw_link)
     if match_cc:
         rid = match_cc.group(1)
         api = cc(rid)
@@ -75,7 +75,7 @@ def handle_cc(raw_link):
     return None
 
 def handle_bilibili(raw_link):
-    match_bilibili = re.match(r'https://live\.bilibili\.com/(\d+)', raw_link)
+    match_bilibili = re.match(r'https://live\.bilibili\.com/[^0-9]*(\d+)', raw_link)
     if match_bilibili:
         rid = match_bilibili.group(1)
         api = bilibili(rid)
@@ -85,9 +85,12 @@ def handle_bilibili(raw_link):
 # 检查输入是否只包含数字
 def handle_numeric(raw_link):
     if raw_link.isdigit():
-        return f'https://live.bilibili.com/{raw_link}'
+        bilibili_link = f'https://live.bilibili.com/{raw_link}'
+        stream_url = handle_bilibili(bilibili_link)
+        iframe_url = iframe_bilibili(bilibili_link)
+        return stream_url, iframe_url
     else:
-        return None
+        return None, None
 
 # 定义处理iframe直播链接的函数
 def iframe_huya(raw_link):
@@ -95,12 +98,11 @@ def iframe_huya(raw_link):
     if match_huya:
         rid = match_huya.group(1)
         return f'<iframe width="100%" height="100%"  frameborder="0" scrolling="no" src="https://liveshare.huya.com/iframe/{rid}"></iframe>'
-        return iframe_link
     return None
 
 def iframe_bilibili(raw_link):
     match_bilibili = re.match(r'https://live\.bilibili\.com/(\d+)', raw_link)
-    if iframe_bilibili:  # 这里应该是 if match_bilibili:
+    if match_bilibili:  
         cid = match_bilibili.group(1)
         iframe_link = f'<div class="video-wrapper"><iframe src="https://www.bilibili.com/blackboard/live/live-activity-player.html?enterTheRoom=0&cid={cid}&autoplay=0&mute=1" frameborder="no" framespacing="0" scrolling="no" allow="autoplay; encrypted-media" allowfullscreen="true"></iframe></div>'
         return iframe_link
@@ -111,13 +113,11 @@ def iframe_bilibili(raw_link):
 def home():
     video_links = VideoLink.query.all()
     iframe_links = iframeLink.query.all()
-    print("iframe_links:", iframe_links)  # 调试：打印查询结果
     return render_template('index.html', video_links=video_links)
 
 @app.route('/iframe.html', methods=['GET'])
 def iframe():
     iframe_links = iframeLink.query.all() 
-    print("iframe_links:", iframe_links)  # 调试：打印查询结果
     return render_template('iframe.html', iframe_links=iframe_links) 
 
 @app.route('/add_video', methods=['POST'])
@@ -133,10 +133,13 @@ def add_video():
         handle_numeric(raw_link) or  
         raw_link  
     )
-    video_link = VideoLink(link=stream_url)
-    db.session.add(video_link)
-    db.session.commit()
-    return jsonify(id=video_link.id, link=video_link.link)
+    if stream_url:
+        video_link = VideoLink(link=stream_url)
+        db.session.add(video_link)
+        db.session.commit()
+        return jsonify(id=video_link.id, link=video_link.link)
+    else:
+        return jsonify(error="无法获取直播流 URL"), 400
 
 @app.route('/add_video_iframe', methods=['POST'])
 def add_video_iframe():
@@ -146,10 +149,13 @@ def add_video_iframe():
         iframe_bilibili(raw_link) or 
         raw_link  
     )
-    iframe_link = iframeLink(link=stream_url)
-    db.session.add(iframe_link)
-    db.session.commit()
-    return jsonify(id=iframe_link.id, link=iframe_link.link)
+    if stream_url:
+        iframe_link = iframeLink(link=stream_url)
+        db.session.add(iframe_link)
+        db.session.commit()
+        return jsonify(id=iframe_link.id, link=iframe_link.link)
+    else:
+        return jsonify(error="无法获取 iframe 链接"), 400
 
 @app.route('/delete_video_iframe', methods=['POST'])
 def delete_video_iframe():
@@ -175,6 +181,11 @@ def delete_all_videos():
     iframeLink.query.delete()  
     db.session.commit()
     return jsonify(success=True)
+
+@app.route('/get_video_links', methods=['GET'])
+def get_video_links():
+    video_links = VideoLink.query.all()
+    return jsonify([{'id': video_link.id, 'link': video_link.link} for video_link in video_links])
 
 # 启动Flask应用
 if __name__ == '__main__':

@@ -117,10 +117,13 @@
         });
 
         $(document).ready(function() {
-            {% for video_link in video_links %}
-                initializeFlvPlayer("video{{ video_link.id }}", "{{ video_link.link }}");
-            {% endfor %}
-            adjustVideoSize();  // 页面加载完成后调整播放器大小
+            $.get("/get_video_links", function(data) {
+                for (var i = 0; i < data.length; i++) {
+                    var video_link = data[i];
+                    initializeFlvPlayer("video" + video_link.id, video_link.link);
+                }
+                adjustVideoSize();  // 页面加载完成后调整播放器大小
+            });
         });
     </script>
 </body>
