@@ -16,4 +16,4 @@
 
 3.项目需要用到cookie请下载→获取→替换（程序目录/login_info/bilibili.json） [biliup/biliup-rs](https://github.com/biliup/biliup-rs/releases)     
 
-4.依赖可陈旧（用到的api依赖没有看反正我能用），可能出错自行ai更多依赖安装。
+4.依赖安装可能出错（用到的api依赖没有看反正我能用），可能出错自行ai更多依赖安装。
