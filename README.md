@@ -1,6 +1,7 @@
 # VideoPlayer
 
-**两款首页默认直播流获取 iframe.html 官方的播放优点稳定；缺点画质不行。**
+**两款首页默认直播流获取 iframe.html 官方的播放优点稳定；缺点画质不行。**    
+
 **目前支持虎牙 斗鱼 b站 cc 老鼠台 抖音 iframe.html页支持b站和虎牙**
 
 ![image](https://github.com/biliup-start/VideoPlayer/assets/96544807/859af8e8-02d6-4a26-9907-bf22c7a84eba)
