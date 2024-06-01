@@ -171,9 +171,12 @@
         });
 
         $("#delete-all").click(function() {
-            $.post("/delete_all_videos", function() {
-                $(".video-item").remove();
-            });
+            var confirmation = confirm("确定删除所有视频吗？");
+            if (confirmation) {
+                $.post("/delete_all_videos", function() {
+                    $(".video-item").remove();
+                });
+            }
         });
 
         $("#play-all").click(function() {
