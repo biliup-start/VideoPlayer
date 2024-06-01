@@ -43,7 +43,7 @@ class bilibili(BaseAPI):
                 return False
 
     def get_stream_urls(self, bili_watch_cookies=None, **kwargs) -> dict:
-        bili_watch_cookies = bili_watch_cookies or login_info/bilibili.json'
+        bili_watch_cookies = bili_watch_cookies or 'login_info/bilibili.json'
         watch_cookies = {}
         if bili_watch_cookies.lower() != 'none':
             try:
