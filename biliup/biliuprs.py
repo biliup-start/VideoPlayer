@@ -8,7 +8,7 @@ import tempfile
 import time
 import subprocess
 
-from biliup.utils import import replace_keywords, ToolsList, VideoInfo
+from biliup.utils import replace_keywords, ToolsList, VideoInfo
 
 class biliuprs():
     def __init__(self, cookies:str=None, account:str=None, debug=False, biliup:str=None, **kwargs) -> None:
@@ -17,7 +17,7 @@ class biliuprs():
             raise ValueError('cookies or account must be set.')
         if cookies is None:
             self.account = account
-            self.cookies = f'.login_info/{account}.json'
+            self.cookies = f'biliup/{account}.json'
         else:
             self.account = os.path.basename(cookies).split('.')[0]
             self.cookies = cookies
