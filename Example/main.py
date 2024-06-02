@@ -13,8 +13,11 @@ from api.douyin import douyin
 from api.cc import cc  
 from api.bilibili import bilibili  
 
+from sqlalchemy.orm import Session
+
 # 初始化Flask应用
 app = Flask(__name__)
+app.debug = True
 app.secret_key = 'c211995c6399997888d379fb2eb88faa'  # 请替换为你的密钥
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -22,6 +25,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # 初始化数据库
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
+session = Session()
 
 # 定义VideoLink模型
 class VideoLink(db.Model):
@@ -180,11 +185,21 @@ def add_video_iframe():
 @app.route('/delete_video_iframe', methods=['POST'])
 def delete_video_iframe():
     iframe_id = request.form.get('iframe_id')
-    iframe_link = db.session.get(iframeLink, iframe_id)
-    if iframe_link:
-        db.session.delete(iframe_link)
-        db.session.commit()
-    return jsonify(success=True)
+    secret_key = request.form.get('secret_key')
+
+    if secret_key != app.secret_key:
+        return jsonify(error="无效的密钥"), 403
+
+    if iframe_id is not None:
+        iframe_link = db.session.get(iframeLink, iframe_id)
+        if iframe_link:
+            db.session.delete(iframe_link)
+            db.session.commit()
+            return jsonify(success=True)
+        else:
+            return jsonify(error="未找到 iframe 视频"), 404
+    else:
+        return jsonify(error="iframe_id 为空"), 400
 
 @app.route('/delete_video', methods=['POST'])
 def delete_video():
@@ -210,13 +225,14 @@ def delete_all_videos():
         return jsonify(error="无效的密钥"), 403
 
     VideoLink.query.delete()
+    iframeLink.query.delete()  
     db.session.commit()
     return jsonify(success=True)
 
 @app.route('/get_video_links', methods=['GET'])
 def get_video_links():
     video_links = VideoLink.query.all()
-    return jsonify([{'id': video_link.id, 'link': video_link.link} for video_link in video_links])
+    return jsonify([{'id': video_link.id, 'raw_link': video_link.raw_link, 'link': video_link.link} for video_link in video_links])
 
 def delete_old_videos():
     while True:
