@@ -4,11 +4,12 @@
 
 **目前支持虎牙 斗鱼 b站 cc 老鼠台 抖音 iframe.html页支持b站和虎牙**
 
-![image](https://github.com/biliup-start/VideoPlayer/assets/96544807/859af8e8-02d6-4a26-9907-bf22c7a84eba)
+![ing](https://github.com/biliup-start/VideoPlayer/assets/96544807/6554d58a-e97f-4fce-b0b6-eea71d32fbe4)
 
-![image](https://github.com/biliup-start/VideoPlayer/assets/96544807/692a9c92-7c3c-49b9-9555-2a20e329abb9)
+![ing](https://github.com/biliup-start/VideoPlayer/assets/96544807/1f3fa8cf-5e1d-48d8-a538-64c5666eddd3)
 
-## 以下是声明
+
+## 声明
 
 1.本项目部分是GPT写的可能存在问题不保证   
 
