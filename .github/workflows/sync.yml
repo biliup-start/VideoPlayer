@@ -32,56 +32,49 @@ jobs:
         sed -i "s/from ..utils/from biliup.utils/g" api/__init__.py
         sed -i "s/from DMR.LiveAPI/from api/g" biliup/__init__.py
         sed -i "s/from DMR.utils/from biliup.utils/g" biliup/__init__.py
+        
     - name: Check for changes
       id: changes
       run: |
-        git diff --quiet api || echo "::set-output name=api_changed::true"
-        git diff --quiet biliup || echo "::set-output name=biliup_changed::true"
+        git diff --quiet api || echo "api_changed=true" >> $GITHUB_ENV
+        git diff --quiet biliup || echo "biliup_changed=true" >> $GITHUB_ENV
+
     - name: Get latest release tag
       id: latesttag
-      run: |
-        echo "::set-output name=tag::$(git describe --tags `git rev-list --tags --max-count=1`)"
-        if [ -z "${{ steps.latesttag.outputs.tag }}" ]; then
-          echo "::set-output name=no_previous_tag::true"
-        fi
+      uses: actions-ecosystem/action-get-latest-tag@v1
+      with:
+        fetch-all-tags: true
+
     - name: Calculate new version
       id: semver
       run: |
-        if [ "${{ steps.latesttag.outputs.no_previous_tag }}" == "true" ]; then
-          echo "::set-output name=new_version::v0.0.1"
+        if [ -z "${{ steps.latesttag.outputs.tag }}" ]; then
+          echo "new_version=v0.0.1" >> $GITHUB_ENV
         else
           IFS='.' read -ra VERSION_PARTS <<< "${{ steps.latesttag.outputs.tag }}"
           VERSION_PARTS[2]=$((VERSION_PARTS[2] + 1))
           NEW_TAG="v${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.${VERSION_PARTS[2]}"
-          echo "::set-output name=new_version::${NEW_TAG}"
+          echo "new_version=${NEW_TAG}" >> $GITHUB_ENV
         fi
-    - name: Ensure unique tag
-      id: ensure_unique_tag
-      run: |
-        NEW_TAG=${{ steps.semver.outputs.new_version }}
-        while git rev-parse "refs/tags/$NEW_TAG" >/dev/null 2>&1; do
-          IFS='.' read -ra VERSION_PARTS <<< "$NEW_TAG"
-          VERSION_PARTS[2]=$((VERSION_PARTS[2] + 1))
-          NEW_TAG="v${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.${VERSION_PARTS[2]}"
-        done
-        echo "::set-output name=unique_version::$NEW_TAG"
+
     - name: Commit, tag and push changes
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
+      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.latesttag.outputs.tag == ''
       run: |
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
-        if [[ "${{ steps.changes.outputs.api_changed }}" == "true" ]]; then
+        if [[ "${{ env.api_changed }}" == "true" ]]; then
           git add api/*
           git commit -m "同步上游 SmallPeaches/DanmakuRender api"
         fi
-        if [[ "${{ steps.changes.outputs.biliup_changed }}" == "true" ]]; then
+        if [[ "${{ env.biliup_changed }}" == "true" ]]; then
           git add biliup/*
           git commit -m "同步上游 SmallPeaches/DanmakuRender biliup"
         fi
-        git tag ${{ steps.ensure_unique_tag.outputs.unique_version }}
+        git tag ${{ env.new_version }}
         git push origin main --tags
+
     - name: Package and Release
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
+      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.latesttag.outputs.tag == ''
       run: |
         tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=upstream_repo --exclude=README.md --exclude=requirements.txt *
         cp VideoPlayer.tar.gz Example.tar.gz
@@ -89,20 +82,21 @@ jobs:
         cp Example/main.py .
         cp -r Example/templates .
         tar -czvf Example.tar.gz --exclude=.git --exclude=VideoPlayer.tar.gz --exclude=Example.tar.gz --exclude=upstream_repo --exclude=Example --exclude=README.md --exclude=requirements.txt *
+
     - name: Create Release
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
+      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.latesttag.outputs.tag == ''
       id: create_release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.PAT }} # 这是你的GitHub令牌
       with:
-        tag_name: ${{ steps.ensure_unique_tag.outputs.unique_version }}
-        release_name: VideoPlayer ${{ steps.ensure_unique_tag.outputs.unique_version }}
+        tag_name: ${{ env.new_version }}
+        release_name: VideoPlayer ${{ env.new_version }}
         draft: false
         prerelease: false
 
     - name: Upload Release Asset 1
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
+      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.latesttag.outputs.tag == ''
       id: upload-release-asset1
       uses: actions/upload-release-asset@v1
       env:
@@ -114,7 +108,7 @@ jobs:
         asset_content_type: application/gzip
 
     - name: Upload Release Asset 2
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
+      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.latesttag.outputs.tag == ''
       id: upload-release-asset2
       uses: actions/upload-release-asset@v1
       env:
