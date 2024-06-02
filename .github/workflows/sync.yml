@@ -41,7 +41,7 @@ jobs:
         git diff --quiet biliup && echo "biliup_changed=true" >> $GITHUB_ENV
 
     - name: Commit changes
-      if: env.api_changed == 'true' || env.biliup_changed == 'true'
+      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
       run: |
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
@@ -69,13 +69,13 @@ jobs:
         echo "new_version=${NEW_TAG}" >> $GITHUB_ENV
 
     - name: Create git tag
-      if: env.api_changed == 'true' || env.biliup_changed == 'true'
+      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
       run: |
         git tag ${{ env.new_version }}
         git push origin ${{ env.new_version }}
 
     - name: Package and Release
-      if: env.api_changed == 'true' || env.biliup_changed == 'true'
+      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
       run: |
         tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=main.py *
         cp VideoPlayer.tar.gz Example.tar.gz
@@ -85,7 +85,7 @@ jobs:
         tar -czvf Example.tar.gz *
 
     - name: Create Release
-      if: env.api_changed == 'true' || env.biliup_changed == 'true'
+      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
       id: create_release
       uses: actions/create-release@v1
       env:
@@ -96,9 +96,9 @@ jobs:
         draft: false
         prerelease: false
 
-    - name: Upload Release VideoPlayer
-      if: env.api_changed == 'true' || env.biliup_changed == 'true'
-      id: upload-release-VideoPlayer
+    - name: Upload Release Asset 1
+      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      id: upload-release-asset1
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.PAT }}
@@ -108,9 +108,9 @@ jobs:
         asset_name: VideoPlayer.tar.gz
         asset_content_type: application/gzip
 
-    - name: Upload Release Example
-      if: env.api_changed == 'true' || env.biliup_changed == 'true'
-      id: upload-release-Example
+    - name: Upload Release Asset 2
+      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      id: upload-release-asset2
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.PAT }}
