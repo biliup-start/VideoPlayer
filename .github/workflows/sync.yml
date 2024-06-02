@@ -37,7 +37,26 @@ jobs:
       run: |
         git diff --quiet api || echo "::set-output name=api_changed::true"
         git diff --quiet biliup || echo "::set-output name=biliup_changed::true"
-    - name: Commit changes
+    - name: Get latest release tag
+      id: latesttag
+      run: |
+        echo "::set-output name=tag::$(git describe --tags `git rev-list --tags --max-count=1`)"
+        if [ -z "${{ steps.latesttag.outputs.tag }}" ]; then
+          echo "::set-output name=no_previous_tag::true"
+        fi
+    - name: Calculate new version
+      id: semver
+      run: |
+        if [ "${{ steps.latesttag.outputs.no_previous_tag }}" == "true" ]; then
+          echo "::set-output name=new_version::v0.0.1"
+        else
+          IFS='.' read -ra VERSION_PARTS <<< "${{ steps.latesttag.outputs.tag }}"
+          VERSION_PARTS[2]=$((VERSION_PARTS[2] + 1))
+          NEW_TAG="v${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.${VERSION_PARTS[2]}"
+          echo "::set-output name=new_version::${NEW_TAG}"
+        fi
+    - name: Commit, tag and push changes
+      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
       run: |
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
@@ -49,30 +68,10 @@ jobs:
           git add biliup/*
           git commit -m "同步上游 SmallPeaches/DanmakuRender biliup"
         fi
-        git push origin main
-    - name: Get latest release tag
-      id: latesttag
-      run: |
-        echo "::set-output name=tag::$(git describe --tags `git rev-list --tags --max-count=1`)"
-    - name: Calculate new version
-      id: semver
-      run: |
-        IFS='.' read -ra VERSION_PARTS <<< "${{ steps.latesttag.outputs.tag }}"
-        if [ -z "${VERSION_PARTS[0]}" ]; then
-          VERSION_PARTS[0]=0
-        fi
-        if [ -z "${VERSION_PARTS[1]}" ]; then
-          VERSION_PARTS[1]=0
-        fi
-        VERSION_PARTS[2]=$((VERSION_PARTS[2] + 1))
-        NEW_TAG="v${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.${VERSION_PARTS[2]}"
-        echo "::set-output name=new_version::${NEW_TAG}"
-    - name: Create git tag
-      run: |
         git tag ${{ steps.semver.outputs.new_version }}
-        git push origin ${{ steps.semver.outputs.new_version }}
+        git push origin main --tags
     - name: Package and Release
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
       run: |
         tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=main.py *
         cp VideoPlayer.tar.gz Example.tar.gz
@@ -81,6 +80,7 @@ jobs:
         cp -r Example/templates .
         tar -czvf Example.tar.gz *
     - name: Create Release
+      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
       id: create_release
       uses: actions/create-release@v1
       env:
@@ -92,6 +92,7 @@ jobs:
         prerelease: false
 
     - name: Upload Release Asset 1
+      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
       id: upload-release-asset1
       uses: actions/upload-release-asset@v1
       env:
@@ -103,6 +104,7 @@ jobs:
         asset_content_type: application/gzip
 
     - name: Upload Release Asset 2
+      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
       id: upload-release-asset2
       uses: actions/upload-release-asset@v1
       env:
@@ -112,4 +114,3 @@ jobs:
         asset_path: ./Example.tar.gz
         asset_name: Example.tar.gz
         asset_content_type: application/gzip
-        
