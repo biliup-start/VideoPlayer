@@ -73,12 +73,12 @@ jobs:
     - name: Package and Release
       if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
       run: |
-        tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=main.py *
+        tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=upstream_repo --exclude=README.md --exclude=requirements.txt *
         cp VideoPlayer.tar.gz Example.tar.gz
         tar -xvf Example.tar.gz
         cp Example/main.py .
         cp -r Example/templates .
-        tar -czvf Example.tar.gz *
+        tar -czvf Example.tar.gz --exclude=.git --exclude=VideoPlayer.tar.gz --exclude=Example.tar.gz --exclude=upstream_repo --exclude=Example --exclude=README.md --exclude=requirements.txt *
     - name: Create Release
       if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
       id: create_release
@@ -87,7 +87,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.PAT }} # 这是你的GitHub令牌
       with:
         tag_name: ${{ steps.semver.outputs.new_version }}
-        release_name: Release ${{ steps.semver.outputs.new_version }}
+        release_name: VideoPlayer ${{ steps.semver.outputs.new_version }}
         draft: false
         prerelease: false
 
