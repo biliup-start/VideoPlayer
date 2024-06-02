@@ -100,7 +100,7 @@ jobs:
 
     - name: Upload Release Asset 1
       if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.no_previous_tag == 'true'
-      uses: actions/upload-release-asset@v3
+      uses: actions/upload-release-asset@v2
       with:
         asset_path: ./VideoPlayer.tar.gz
         asset_name: VideoPlayer.tar.gz
@@ -108,7 +108,7 @@ jobs:
 
     - name: Upload Release Asset 2
       if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.no_previous_tag == 'true'
-      uses: actions/upload-release-asset@v3
+      uses: actions/upload-release-asset@v2
       with:
         asset_path: ./Example.tar.gz
         asset_name: Example.tar.gz
