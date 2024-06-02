@@ -32,7 +32,6 @@ jobs:
         sed -i "s/from ..utils/from biliup.utils/g" api/__init__.py
         sed -i "s/from DMR.LiveAPI/from api/g" biliup/__init__.py
         sed -i "s/from DMR.utils/from biliup.utils/g" biliup/__init__.py
-        
     - name: Check for changes
       id: changes
       run: |
@@ -41,24 +40,29 @@ jobs:
 
     - name: Get latest release tag
       id: latesttag
-      uses: actions-ecosystem/action-get-latest-tag@v1
-      with:
-        fetch-all-tags: true
+      run: |
+        latest_tag=$(git describe --tags `git rev-list --tags --max-count=1`)
+        echo "latest_tag=$latest_tag" >> $GITHUB_ENV
+        if [ -z "$latest_tag" ]; then
+          echo "no_previous_tag=true" >> $GITHUB_ENV
+        else
+          echo "no_previous_tag=false" >> $GITHUB_ENV
+        fi
 
     - name: Calculate new version
       id: semver
       run: |
-        if [ -z "${{ steps.latesttag.outputs.tag }}" ]; then
+        if [ "${{ env.no_previous_tag }}" == "true" ]; then
           echo "new_version=v0.0.1" >> $GITHUB_ENV
         else
-          IFS='.' read -ra VERSION_PARTS <<< "${{ steps.latesttag.outputs.tag }}"
+          IFS='.' read -ra VERSION_PARTS <<< "${{ env.latest_tag }}"
           VERSION_PARTS[2]=$((VERSION_PARTS[2] + 1))
           NEW_TAG="v${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.${VERSION_PARTS[2]}"
           echo "new_version=${NEW_TAG}" >> $GITHUB_ENV
         fi
 
     - name: Commit, tag and push changes
-      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.latesttag.outputs.tag == ''
+      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.no_previous_tag == 'true'
       run: |
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
@@ -74,7 +78,7 @@ jobs:
         git push origin main --tags
 
     - name: Package and Release
-      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.latesttag.outputs.tag == ''
+      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.no_previous_tag == 'true'
       run: |
         tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=upstream_repo --exclude=README.md --exclude=requirements.txt *
         cp VideoPlayer.tar.gz Example.tar.gz
@@ -84,37 +88,28 @@ jobs:
         tar -czvf Example.tar.gz --exclude=.git --exclude=VideoPlayer.tar.gz --exclude=Example.tar.gz --exclude=upstream_repo --exclude=Example --exclude=README.md --exclude=requirements.txt *
 
     - name: Create Release
-      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.latesttag.outputs.tag == ''
+      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.no_previous_tag == 'true'
       id: create_release
       uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.PAT }} # 这是你的GitHub令牌
       with:
+        token: ${{ secrets.PAT }} # 这是你的GitHub令牌
         tag_name: ${{ env.new_version }}
         release_name: VideoPlayer ${{ env.new_version }}
         draft: false
         prerelease: false
 
     - name: Upload Release Asset 1
-      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.latesttag.outputs.tag == ''
-      id: upload-release-asset1
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.PAT }}
+      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.no_previous_tag == 'true'
+      uses: actions/upload-release-asset@v3
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }} 
         asset_path: ./VideoPlayer.tar.gz
         asset_name: VideoPlayer.tar.gz
         asset_content_type: application/gzip
 
     - name: Upload Release Asset 2
-      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.latesttag.outputs.tag == ''
-      id: upload-release-asset2
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.PAT }}
+      if: env.api_changed == 'true' || env.biliup_changed == 'true' || env.no_previous_tag == 'true'
+      uses: actions/upload-release-asset@v3
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }} 
         asset_path: ./Example.tar.gz
         asset_name: Example.tar.gz
         asset_content_type: application/gzip
