@@ -92,7 +92,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.PAT }} # 这是你的GitHub令牌
       with:
         tag_name: ${{ env.new_version }}
-        release_name: Release ${{ env.new_version }}
+        release_name: VideoPlayer ${{ env.new_version }}
         draft: false
         prerelease: false
 
