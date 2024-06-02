@@ -55,6 +55,16 @@ jobs:
           NEW_TAG="v${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.${VERSION_PARTS[2]}"
           echo "::set-output name=new_version::${NEW_TAG}"
         fi
+    - name: Ensure unique tag
+      id: ensure_unique_tag
+      run: |
+        NEW_TAG=${{ steps.semver.outputs.new_version }}
+        while git rev-parse "refs/tags/$NEW_TAG" >/dev/null 2>&1; do
+          IFS='.' read -ra VERSION_PARTS <<< "$NEW_TAG"
+          VERSION_PARTS[2]=$((VERSION_PARTS[2] + 1))
+          NEW_TAG="v${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.${VERSION_PARTS[2]}"
+        done
+        echo "::set-output name=unique_version::$NEW_TAG"
     - name: Commit, tag and push changes
       if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
       run: |
@@ -68,7 +78,7 @@ jobs:
           git add biliup/*
           git commit -m "同步上游 SmallPeaches/DanmakuRender biliup"
         fi
-        git tag ${{ steps.semver.outputs.new_version }}
+        git tag ${{ steps.ensure_unique_tag.outputs.unique_version }}
         git push origin main --tags
     - name: Package and Release
       if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true' || steps.latesttag.outputs.no_previous_tag == 'true'
@@ -86,8 +96,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.PAT }} # 这是你的GitHub令牌
       with:
-        tag_name: ${{ steps.semver.outputs.new_version }}
-        release_name: VideoPlayer ${{ steps.semver.outputs.new_version }}
+        tag_name: ${{ steps.ensure_unique_tag.outputs.unique_version }}
+        release_name: VideoPlayer ${{ steps.ensure_unique_tag.outputs.unique_version }}
         draft: false
         prerelease: false
 
