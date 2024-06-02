@@ -37,19 +37,19 @@ jobs:
     - name: Check for changes
       id: changes
       run: |
-        git diff --quiet api || echo "::set-output name=api_changed::true"
-        git diff --quiet biliup || echo "::set-output name=biliup_changed::true"
+        git diff --quiet api && echo "api_changed=true" >> $GITHUB_ENV
+        git diff --quiet biliup && echo "biliup_changed=true" >> $GITHUB_ENV
 
     - name: Commit changes
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      if: env.api_changed == 'true' || env.biliup_changed == 'true'
       run: |
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
-        if [[ "${{ steps.changes.outputs.api_changed }}" == "true" ]]; then
+        if [[ "${{ env.api_changed }}" == "true" ]]; then
           git add api/*
           git commit -m "同步上游 SmallPeaches/DanmakuRender api"
         fi
-        if [[ "${{ steps.changes.outputs.biliup_changed }}" == "true" ]]; then
+        if [[ "${{ env.biliup_changed }}" == "true" ]]; then
           git add biliup/*
           git commit -m "同步上游 SmallPeaches/DanmakuRender biliup"
         fi
@@ -58,47 +58,47 @@ jobs:
     - name: Get latest release tag
       id: latesttag
       run: |
-        echo "::set-output name=tag::$(git describe --tags `git rev-list --tags --max-count=1`)"
+        echo "tag=$(git describe --tags `git rev-list --tags --max-count=1`)" >> $GITHUB_ENV
 
     - name: Calculate new version
       id: semver
       run: |
-        IFS='.' read -ra VERSION_PARTS <<< "${{ steps.latesttag.outputs.tag }}"
+        IFS='.' read -ra VERSION_PARTS <<< "${{ env.tag }}"
         VERSION_PARTS[2]=$((VERSION_PARTS[2] + 1))
         NEW_TAG="v${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.${VERSION_PARTS[2]}"
-        echo "::set-output name=new_version::${NEW_TAG}"
+        echo "new_version=${NEW_TAG}" >> $GITHUB_ENV
 
     - name: Create git tag
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      if: env.api_changed == 'true' || env.biliup_changed == 'true'
       run: |
-        git tag ${{ steps.semver.outputs.new_version }}
-        git push origin ${{ steps.semver.outputs.new_version }}
+        git tag ${{ env.new_version }}
+        git push origin ${{ env.new_version }}
 
     - name: Package and Release
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      if: env.api_changed == 'true' || env.biliup_changed == 'true'
       run: |
-        tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=upstream_repo --exclude=README.md --exclude=requirements.txt *
+        tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=main.py *
         cp VideoPlayer.tar.gz Example.tar.gz
         tar -xvf Example.tar.gz
         cp Example/main.py .
         cp -r Example/templates .
-        tar -czvf Example.tar.gz --exclude=.git --exclude=VideoPlayer.tar.gz --exclude=Example.tar.gz --exclude=upstream_repo --exclude=Example --exclude=README.md --exclude=requirements.txt *
+        tar -czvf Example.tar.gz *
 
     - name: Create Release
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      if: env.api_changed == 'true' || env.biliup_changed == 'true'
       id: create_release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.PAT }} # 这是你的GitHub令牌
       with:
-        tag_name: ${{ steps.semver.outputs.new_version }}
-        release_name: Release ${{ steps.semver.outputs.new_version }}
+        tag_name: ${{ env.new_version }}
+        release_name: Release ${{ env.new_version }}
         draft: false
         prerelease: false
 
-    - name: Upload Release Asset 1
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
-      id: upload-release-asset1
+    - name: Upload Release VideoPlayer
+      if: env.api_changed == 'true' || env.biliup_changed == 'true'
+      id: upload-release-VideoPlayer
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.PAT }}
@@ -108,9 +108,9 @@ jobs:
         asset_name: VideoPlayer.tar.gz
         asset_content_type: application/gzip
 
-    - name: Upload Release Asset 2
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
-      id: upload-release-asset2
+    - name: Upload Release Example
+      if: env.api_changed == 'true' || env.biliup_changed == 'true'
+      id: upload-release-Example
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.PAT }}
