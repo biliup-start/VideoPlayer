@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>直播流播放器</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flv.js/1.6.2/flv.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.9/hls.min.js"></script>
+    <style>
+        .video-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .video-item {
+            position: relative;
+            box-sizing: border-box;
+            margin: 10px;
+            flex-basis: calc(100% / 11);
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 400px;
+            height: 236px;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+        }
+
+        .delete-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.7);
+            border: none;
+            cursor: pointer;
+        }
+
+        .delete-button:hover {
+            background: rgba(255, 255, 255, 1);
+        }
+
+        .marquee-container {
+            width: 100%;
+            overflow: hidden;
+            background: #fff; /* 设置背景为白色 */
+            white-space: nowrap;
+            box-sizing: border-box;
+            padding: 10px 0;
+        }
+
+        .marquee {
+            display: inline-block;
+            padding-left: 100%;
+            font-weight: bold; /* 加粗字体 */
+            font-size: 24px; /* 设置字体大小 */
+            background: linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet); /* 渐变色 */
+            -webkit-background-clip: text;
+            color: transparent;
+            animation: marquee 15s linear infinite;
+        }
+
+        @keyframes marquee {
+            from {
+                transform: translateX(100%);
+            }
+            to {
+                transform: translateX(-100%);
+            }
+        }
+    </style>
+</head>
+<body>
+    <form id="video-form" style="display: flex; justify-content: center; align-items: center;">
+        <input type="text" id="video_link" name="video_link" placeholder="请输入视频链接" required style="margin-right: 10px;">
+        <button type="submit" style="margin-right: 10px;">添加视频</button>
+        <button type="button" id="play-all" style="margin-right: 10px;">播放所有</button>
+        <button type="button" id="pause-all" style="margin-right: 10px;">暂停所有</button>
+        <button type="button" id="delete-all" style="margin-right: 10px;">清除所有</button>
+        <button type="button" id="switch-iframe" style="margin-right: 10px;" onclick="location.href='./iframe.html'">切换iframe</button>
+    </form>
+
+    <!-- 滚动字幕区域 -->
+    <div class="marquee-container">
+        <div class="marquee">这是项目的示例，实际应用请自行部署；谢谢！！</div>
+    </div>
+
+    <div class="video-container" id="video-container">
+        {% for video_link in video_links %}
+            <div class="video-item">
+                <div class="video-wrapper">
+                    <video id="video{{ video_link.id }}" controls></video>
+                </div>
+                <button class="delete-button" data-id="{{ video_link.id }}">删除</button>
+            </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        function adjustVideoSize() {
+            var videoCount = $(".video-item").length;  
+            var videosPerRow = Math.ceil(Math.sqrt(videoCount));
+            var containerWidth = $("#video-container").width(); 
+
+            var videoWidth = containerWidth / videosPerRow; 
+            videoWidth = videoWidth * 0.7; 
+            var videoHeight = videoWidth * 9 / 16;
+
+            $(".video-item").each(function() {
+                $(this).css({
+                    "width": videoWidth + "px",
+                    "height": videoHeight + "px"
+                });
+            });
+        }
+
+        function initializeFlvPlayer(elementId, url) {
+            if (flvjs.isSupported()) {
+                var videoElement = document.getElementById(elementId);
+                var flvPlayer = flvjs.createPlayer({
+                    type: 'flv',
+                    url: url
+                });
+                flvPlayer.attachMediaElement(videoElement);
+                flvPlayer.load();
+                flvPlayer.on('loadedmetadata', function() {
+                    adjustVideoSize();
+                });
+            }
+        }
+
+        function initializeHlsPlayer(elementId, url) {
+            var videoElement = document.getElementById(elementId);
+            if (Hls.isSupported()) {
+                var hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(videoElement);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    videoElement.play();
+                    adjustVideoSize();
+                });
+            } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+                videoElement.src = url;
+                videoElement.addEventListener('loadedmetadata', function() {
+                    adjustVideoSize();
+                });
+                videoElement.play();
+            }
+        }
+
+        function getFormat(url) {
+            const pattern = /\.([0-9a-z]+)(?:[\?&]|$)/i;
+            const match = url.match(pattern);
+            return match ? match[1].toLowerCase() : '';
+        }
+
+        function initializePlayer(elementId, url) {
+            var format = getFormat(url);
+            if (format === 'flv') {
+                initializeFlvPlayer(elementId, url);
+            } else if (format === 'm3u8') {
+                initializeHlsPlayer(elementId, url);
+            }
+        }
+
+        $(document).ready(function() {
+            $("#video-form").submit(function(e) {
+                e.preventDefault();
+                var videoLink = $("#video_link").val();
+                $.ajax({
+                    url: "/add_video",
+                    type: "POST",
+                    data: { video_link: videoLink },
+                    success: function(data) {
+                        toastr.success('视频链接已添加');
+                        setTimeout(function() {
+                            location.reload();
+                            adjustVideoSize();  
+                        }, 1500);
+                    },
+                    error: function(xhr, status, error) {
+                        var errorMessage = xhr.responseJSON.error;
+                        toastr.error(errorMessage, '错误');
+                    }
+                });
+            });
+        });
+
+
+            $(document).on("click", ".delete-button", function() {
+                var idToRemove = $(this).data("id");
+                $(this).parent().remove();
+                $.post("/delete_video", { video_id: idToRemove });
+            });
+
+            $("#delete-all").click(function() {
+                var confirmation = confirm("确定删除所有视频吗？");
+                if (confirmation) {
+                    $.post("/delete_all_videos", function() {
+                        $(".video-item").remove();
+                    });
+                }
+            });
+
+            $("#play-all").click(function() {
+                $("video").each(function() {
+                    this.play();
+                });
+            });
+
+            $("#pause-all").click(function() {
+                $("video").each(function() {
+                    this.pause();
+                });
+            });
+
+            $.get("/get_video_links", function(data) {
+                for (var i = 0; i < data.length; i++) {
+                    var video_link = data[i];
+                    initializePlayer("video" + video_link.id, video_link.link);
+                }
+                adjustVideoSize();
+            });
+    </script>
+</body>
+</html>
