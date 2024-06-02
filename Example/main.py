@@ -8,12 +8,18 @@ from flask_sqlalchemy import SQLAlchemy
 import re
 from api.douyu import douyu
 from api.huya import huya
-from api.twitch import twitch  
-from api.douyin import douyin  
-from api.cc import cc  
-from api.bilibili import bilibili  
+from api.twitch import twitch
+from api.douyin import douyin
+from api.cc import cc
+from api.bilibili import bilibili
 
 from sqlalchemy.orm import Session
+import requests
+import threading
+import time
+import os
+
+from flask_socketio import SocketIO, emit
 
 # 初始化Flask应用
 app = Flask(__name__)
@@ -26,6 +32,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
+# 初始化SocketIO
+socketio = SocketIO(app)
+
 session = Session()
 
 # 定义VideoLink模型
@@ -34,6 +43,7 @@ class VideoLink(db.Model):
     raw_link = db.Column(db.String(255), nullable=False)  # 新增：原始链接
     link = db.Column(db.String(255), nullable=False)  # 处理后的流链接
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # 添加时间戳字段
+    last_checked = db.Column(db.DateTime, default=datetime.utcnow)  # 最后一次检查时间
 
 class iframeLink(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -66,7 +76,7 @@ def handle_twitch(raw_link):
     if match_twitch:
         rid = match_twitch.group(1)
         api = twitch(rid)
-        return api.get_stream_url()  
+        return api.get_stream_url()
     return None
 
 def handle_douyin(raw_link):
@@ -74,7 +84,7 @@ def handle_douyin(raw_link):
     if match_douyin:
         rid = match_douyin.group(1)
         api = douyin(rid)
-        return api.get_stream_url()  
+        return api.get_stream_url()
     return None
 
 def handle_cc(raw_link):
@@ -82,7 +92,7 @@ def handle_cc(raw_link):
     if match_cc:
         rid = match_cc.group(1)
         api = cc(rid)
-        return api.get_stream_url()  
+        return api.get_stream_url()
     return None
 
 def handle_bilibili(raw_link):
@@ -90,7 +100,7 @@ def handle_bilibili(raw_link):
     if match_bilibili:
         rid = match_bilibili.group(1)
         api = bilibili(rid)
-        return api.get_stream_url()  
+        return api.get_stream_url()
     return None
 
 # 检查输入是否只包含数字
@@ -157,7 +167,7 @@ def add_video():
         if existing_link:
             return jsonify(error="提示：相同链接一个小时只能输入一次"), 400
 
-        video_link = VideoLink(raw_link=raw_link, link=stream_url, timestamp=datetime.utcnow())
+        video_link = VideoLink(raw_link=raw_link, link=stream_url, timestamp=datetime.utcnow(), last_checked=datetime.utcnow())
         db.session.add(video_link)
         db.session.commit()
 
@@ -237,13 +247,44 @@ def get_video_links():
 def delete_old_videos():
     while True:
         with app.app_context():
-            cutoff = datetime.utcnow() - timedelta(days=1)
+            cutoff = datetime.utcnow() - timedelta(hours=1)
             old_videos = VideoLink.query.filter(VideoLink.timestamp < cutoff).all()
             for video in old_videos:
                 db.session.delete(video)
             db.session.commit()
-        time.sleep(86400)  # 每24小时运行一次
+        time.sleep(60)  # 每分钟运行一次
+
+def check_video_streams():
+    while True:
+        with app.app_context():
+            video_links = VideoLink.query.all()
+            for video in video_links:
+                try:
+                    response = requests.head(video.link)
+                    if response.status_code in [404, 500]:
+                        new_stream_url = (
+                            handle_huya(video.raw_link) or 
+                            handle_douyu(video.raw_link) or 
+                            handle_twitch(video.raw_link) or 
+                            handle_douyin(video.raw_link) or 
+                            handle_cc(video.raw_link) or 
+                            handle_bilibili(video.raw_link) or 
+                            handle_numeric_bilibili(video.raw_link) or  
+                            None  
+                        )
+                        if new_stream_url:
+                            video.link = new_stream_url
+                            video.last_checked = datetime.utcnow()
+                            db.session.commit()
+                            socketio.emit('update_stream', {'id': video.id, 'link': new_stream_url})
+                except Exception as e:
+                    print(f"Error checking video stream: {e}")
+        time.sleep(60)  # 每分钟运行一次
+
+# 启动检查视频流的后台线程
+threading.Thread(target=check_video_streams).start()
+threading.Thread(target=delete_old_videos).start()
 
 # 启动Flask应用
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True, port=5002)
+    socketio.run(app, host='0.0.0.0', port=5002, debug=True, allow_unsafe_werkzeug=True)

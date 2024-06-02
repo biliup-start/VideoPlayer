@@ -10,6 +10,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flv.js/1.6.2/flv.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.9/hls.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <style>
         .video-container {
             display: flex;
@@ -69,7 +70,7 @@
         .marquee-container {
             width: 100%;
             overflow: hidden;
-            background: #fff;
+            background: transparent;
             white-space: nowrap;
             box-sizing: border-box;
             padding: 10px 0;
@@ -80,7 +81,6 @@
             padding-left: 100%;
             font-weight: bold;
             font-size: 24px;
-            background: linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet);
             -webkit-background-clip: text;
             color: transparent;
             animation: marquee 30s linear infinite paused;
@@ -93,6 +93,12 @@
             to {
                 transform: translateX(-100%);
             }
+        }
+
+        body {
+            background-image: url('https://t.mwm.moe/ycy/');
+            background-repeat: no-repeat;
+            background-size: cover;
         }
     </style>
 </head>
@@ -115,6 +121,21 @@
     </div>
 
     <script>
+        const socket = io();
+
+        socket.on('update_stream', function(data) {
+            const videoElement = document.getElementById(`video${data.id}`);
+            if (videoElement) {
+                const currentTime = videoElement.currentTime;
+                videoElement.src = data.link;
+                videoElement.addEventListener('loadedmetadata', function() {
+                    videoElement.currentTime = currentTime;
+                    videoElement.play();
+                });
+                toastr.info('视频流已更新，请刷新页面。');
+            }
+        });
+
         function adjustVideoSize() {
             var videoCount = $(".video-item").length;
             var videosPerRow = Math.ceil(Math.sqrt(videoCount));
@@ -132,7 +153,7 @@
             });
         }
 
-        function initializeFlvPlayer(elementId, url) {
+        function initializeFlvPlayer(elementId, url, retryCount = 3) {
             if (flvjs.isSupported()) {
                 var videoElement = document.getElementById(elementId);
                 var flvPlayer = flvjs.createPlayer({
@@ -144,10 +165,23 @@
                 flvPlayer.on('loadedmetadata', function() {
                     adjustVideoSize();
                 });
+                flvPlayer.on('error', function() {
+                    if (retryCount > 0) {
+                        toastr.error('视频流加载失败，正在重试...');
+                        setTimeout(() => {
+                            initializeFlvPlayer(elementId, url, retryCount - 1);
+                        }, 60000); // 60秒后重试
+                    } else {
+                        toastr.error('失败，手动删除刷新不加载...');
+                        flvPlayer.destroy();
+                        videoElement.remove();
+                    }
+                });
             }
         }
 
-        function initializeHlsPlayer(elementId, url) {
+
+        function initializeHlsPlayer(elementId, url, retryCount = 3) {
             var videoElement = document.getElementById(elementId);
             if (Hls.isSupported()) {
                 var hls = new Hls();
@@ -157,12 +191,49 @@
                     videoElement.play();
                     adjustVideoSize();
                 });
+                hls.on(Hls.Events.ERROR, function(event, data) {
+                    if (data.fatal) {
+                        switch(data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                if (retryCount > 0) {
+                                    toastr.error('视频流加载失败，正在重试...');
+                                    setTimeout(() => {
+                                        hls.startLoad();
+                                    }, 60000); // 60秒后重试
+                                    retryCount--;
+                                } else {
+                                    toastr.error('失败，手动删除刷新不加载...');
+                                    hls.destroy();
+                                    videoElement.remove();
+                                }
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                hls.destroy();
+                                break;
+                        }
+                    }
+                });
             } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
                 videoElement.src = url;
                 videoElement.addEventListener('loadedmetadata', function() {
                     adjustVideoSize();
                 });
                 videoElement.play();
+                videoElement.addEventListener('error', function() {
+                    if (retryCount > 0) {
+                        toastr.error('视频流加载失败，正在重试...');
+                        setTimeout(() => {
+                            videoElement.load();
+                            retryCount--;
+                        }, 60000); // 60秒后重试
+                    } else {
+                        toastr.error('视频流加载失败，请删除...');
+                        videoElement.remove();
+                    }
+                });
             }
         }
 
@@ -182,8 +253,8 @@
         }
 
         function addVideoToDOM(video) {
-        	  var isNumeric = /^\d+$/.test(video.raw_link);
-        	  var displayLink = isNumeric ? 'https://live.bilibili.com/' + video.raw_link : video.raw_link;
+            var isNumeric = /^\d+$/.test(video.raw_link);
+            var displayLink = isNumeric ? 'https://live.bilibili.com/' + video.raw_link : video.raw_link;
             var videoItem = `
                 <div class="video-item" data-id="${video.id}">
                     <div class="video-wrapper">
@@ -206,7 +277,25 @@
             document.body.removeChild(tempInput);
             toastr.success('链接已复制到剪贴板');
         }
-
+        
+        $(document).ready(function() {
+            function getRandomColor() {
+                var letters = '0123456789ABCDEF';
+                var color = '#';
+                for (var i = 0; i < 6; i++) {
+                    color += letters[Math.floor(Math.random() * 16)];
+                }
+                return color;
+            }
+            $('.marquee').html(function(i, html) {
+                var chars = $.trim(html).split("");
+                return '<span>' + chars.join('</span><span>') + '</span>';
+            });
+            $('.marquee span').each(function() {
+                $(this).css('color', getRandomColor());
+            });
+        });
+        
         $(document).ready(function() {
             $("#video-form").submit(function(e) {
                 e.preventDefault();
