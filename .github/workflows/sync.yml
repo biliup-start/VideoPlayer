@@ -39,7 +39,7 @@ jobs:
       if: github.event_name == 'schedule'
       run: |
         git diff --name-only | grep api/ && echo "api_changed=true" >> $GITHUB_ENV || echo "api_changed=false" >> $GITHUB_ENV
-        git diff --name-only | grep biliup/ && echo "biliup_changed=true" >> $GITHUB_ENV || echo "biliup_changed=false" >> $GITHUB_ENV
+        git diff --name-only | grep -v 'biliup/cookies.json' | grep biliup/ && echo "biliup_changed=true" >> $GITHUB_ENV || echo "biliup_changed=false" >> $GITHUB_ENV
 
     - name: Commit changes
       if: env.api_changed == 'true' || env.biliup_changed == 'true'
@@ -59,12 +59,13 @@ jobs:
     - name: Get latest release tag
       id: latesttag
       run: |
-        latest_tag=$(git tag --sort=-v:refname | head -n 1)
-        if [ -z "$latest_tag" ]; then
+        if [ -f "static/version.txt" ]; then
+          latest_tag=$(cat static/version.txt)
+        else
           latest_tag="v0.0.0"
         fi
         echo "tag=${latest_tag}" >> $GITHUB_ENV
-        
+
     - name: Calculate new version
       id: semver
       run: |
@@ -72,6 +73,16 @@ jobs:
         PATCH=$((VERSION_PARTS[3] + 1))
         NEW_TAG="v${VERSION_PARTS[1]}.${VERSION_PARTS[2]}.${PATCH}"
         echo "new_version=${NEW_TAG}" >> $GITHUB_ENV
+
+    - name: Update version file
+      run: |
+        echo "${{ env.new_version }}" > static/version.txt
+
+    - name: Commit version file
+      run: |
+        git add static/version.txt
+        git commit -m "Update version file"
+        git push origin main
 
     - name: Create git tag
       if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
@@ -82,7 +93,7 @@ jobs:
     - name: Package and Release
       if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
       run: |
-        tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=upstream_repo --exclude=README.md --exclude=requirements.txt *
+        tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=upstream_repo --exclude=README.md --exclude=requirements.txt --exclude=static/version.txt*
         cp VideoPlayer.tar.gz Example.tar.gz
         tar -xvf Example.tar.gz
         cp Example/main.py .
@@ -101,9 +112,9 @@ jobs:
         draft: false
         prerelease: false
 
-    - name: Upload Release Asset 1
+    - name: Upload Release VideoPlayer
       if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
-      id: upload-release-asset1
+      id: upload-release-VideoPlayer
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.PAT }}
@@ -113,9 +124,9 @@ jobs:
         asset_name: VideoPlayer.tar.gz
         asset_content_type: application/gzip
 
-    - name: Upload Release Asset 2
+    - name: Upload Release Example
       if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
-      id: upload-release-asset2
+      id: upload-release-Example
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.PAT }}
