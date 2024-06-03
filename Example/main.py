@@ -1,11 +1,18 @@
 # 使用到DanmakuRender数据库中的api复制来的基本没改，懒能动就行。
-# 哔哩哔哩cookie文件请保存在login_info/bilibili.json，否则不知道是否会出错没测试。
+# 哔哩哔哩cookie文件请保存在biliup/cookies.json，否则不知道是否会出错没测试。
 # 导入所需的库
+import logging
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import Session
+from flask_socketio import SocketIO, emit
 import re
+import requests
+import threading
+import time
+import os
 from api.douyu import douyu
 from api.huya import huya
 from api.twitch import twitch
@@ -13,18 +20,32 @@ from api.douyin import douyin
 from api.cc import cc
 from api.bilibili import bilibili
 
-from sqlalchemy.orm import Session
-import requests
-import threading
-import time
-import os
+# 创建一个logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-from flask_socketio import SocketIO, emit
+# 创建一个handler，用于写入日志文件
+logfile = './log.txt'
+fh = logging.FileHandler(logfile, mode='a')
+fh.setLevel(logging.DEBUG)
+
+# 再创建一个handler，用于输出到控制台
+ch = logging.StreamHandler()
+ch.setLevel(logging.WARNING)
+
+# 定义handler的输出格式
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+fh.setFormatter(formatter)
+ch.setFormatter(formatter)
+
+# 给logger添加handler
+logger.addHandler(fh)
+logger.addHandler(ch)
 
 # 初始化Flask应用
 app = Flask(__name__)
 app.debug = True
-app.secret_key = 'c211995c6399997888d379fb2eb88faa'  # 请替换为你的密钥
+app.secret_key = 'CkHB02PVQPsAw7djGJl14Qll9FbNVSyEXWjPoXKUludGIXR9R'  # 请替换为你的密钥
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -210,21 +231,23 @@ def delete_video_iframe():
             return jsonify(error="未找到 iframe 视频"), 404
     else:
         return jsonify(error="iframe_id 为空"), 400
-
 @app.route('/delete_video', methods=['POST'])
 def delete_video():
     video_id = request.form['video_id']
     secret_key = request.form['secret_key']
     
     if secret_key != app.secret_key:
+        logger.warning("Invalid secret key attempted.")
         return jsonify(error="无效的密钥"), 403
 
     video = VideoLink.query.get(video_id)
     if video:
         db.session.delete(video)
         db.session.commit()
+        logger.info(f"Video {video_id} deleted successfully.")
         return jsonify(success=True)
     else:
+        logger.error(f"Video {video_id} not found.")
         return jsonify(error="视频未找到"), 404
 
 @app.route('/delete_all_videos', methods=['POST'])
@@ -232,11 +255,13 @@ def delete_all_videos():
     secret_key = request.form['secret_key']
     
     if secret_key != app.secret_key:
+        logger.warning("Invalid secret key attempted.")
         return jsonify(error="无效的密钥"), 403
 
     VideoLink.query.delete()
     iframeLink.query.delete()  
     db.session.commit()
+    logger.info("All videos deleted successfully.")
     return jsonify(success=True)
 
 @app.route('/get_video_links', methods=['GET'])
@@ -248,20 +273,26 @@ def delete_old_videos():
     while True:
         with app.app_context():
             cutoff = datetime.utcnow() - timedelta(hours=1)
-            old_videos = VideoLink.query.filter(VideoLink.timestamp < cutoff).all()
+            old_videos = VideoLink.query.filter(VideoLink.last_checked < cutoff).all()
             for video in old_videos:
                 db.session.delete(video)
             db.session.commit()
+        logger.info("Old videos deleted.")
         time.sleep(60)  # 每分钟运行一次
 
+socketio.start_background_task(delete_old_videos)
+
 def check_video_streams():
-    while True:
+    max_attempts = 2
+    attempts = 0
+    while attempts < max_attempts:
         with app.app_context():
             video_links = VideoLink.query.all()
             for video in video_links:
                 try:
-                    response = requests.head(video.link)
-                    if response.status_code in [404, 500]:
+                    response = requests.head(video.link, timeout=5)
+                    if response.status_code < 200 or response.status_code >= 400:
+                        logger.warning(f"Invalid stream detected, re-fetching: {video.link}")
                         new_stream_url = (
                             handle_huya(video.raw_link) or 
                             handle_douyu(video.raw_link) or 
@@ -277,13 +308,15 @@ def check_video_streams():
                             video.last_checked = datetime.utcnow()
                             db.session.commit()
                             socketio.emit('update_stream', {'id': video.id, 'link': new_stream_url})
+                    else:
+                        video.last_checked = datetime.utcnow()
+                        db.session.commit()
                 except Exception as e:
-                    print(f"Error checking video stream: {e}")
-        time.sleep(60)  # 每分钟运行一次
+                    logger.error(f"Error checking video stream: {e}")
+        time.sleep(60)
+        attempts += 1
 
-# 启动检查视频流的后台线程
-threading.Thread(target=check_video_streams).start()
-threading.Thread(target=delete_old_videos).start()
+socketio.start_background_task(check_video_streams)
 
 # 启动Flask应用
 if __name__ == '__main__':

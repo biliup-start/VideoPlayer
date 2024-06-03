@@ -11,6 +11,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flv.js/1.6.2/flv.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.9/hls.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
     <style>
         .video-container {
             display: flex;
@@ -51,6 +52,19 @@
 
         .copy-link:hover {
             background: rgba(255, 255, 255, 0.7);
+        }
+
+        .fullscreen-button {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0);
+            border: none;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 12px;
         }
 
         .delete-button {
@@ -153,88 +167,52 @@
             });
         }
 
-        function initializeFlvPlayer(elementId, url, retryCount = 3) {
-            if (flvjs.isSupported()) {
-                var videoElement = document.getElementById(elementId);
-                var flvPlayer = flvjs.createPlayer({
-                    type: 'flv',
-                    url: url
-                });
-                flvPlayer.attachMediaElement(videoElement);
-                flvPlayer.load();
-                flvPlayer.on('loadedmetadata', function() {
-                    adjustVideoSize();
-                });
-                flvPlayer.on('error', function() {
-                    if (retryCount > 0) {
-                        toastr.error('视频流加载失败，正在重试...');
-                        setTimeout(() => {
-                            initializeFlvPlayer(elementId, url, retryCount - 1);
-                        }, 60000); // 60秒后重试
-                    } else {
-                        toastr.error('失败，手动删除刷新不加载...');
-                        flvPlayer.destroy();
-                        videoElement.remove();
-                    }
-                });
-            }
-        }
-
-
-        function initializeHlsPlayer(elementId, url, retryCount = 3) {
-            var videoElement = document.getElementById(elementId);
-            if (Hls.isSupported()) {
-                var hls = new Hls();
-                hls.loadSource(url);
-                hls.attachMedia(videoElement);
-                hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    videoElement.play();
-                    adjustVideoSize();
-                });
-                hls.on(Hls.Events.ERROR, function(event, data) {
-                    if (data.fatal) {
-                        switch(data.type) {
-                            case Hls.ErrorTypes.NETWORK_ERROR:
-                                if (retryCount > 0) {
-                                    toastr.error('视频流加载失败，正在重试...');
-                                    setTimeout(() => {
-                                        hls.startLoad();
-                                    }, 60000); // 60秒后重试
-                                    retryCount--;
-                                } else {
-                                    toastr.error('失败，手动删除刷新不加载...');
-                                    hls.destroy();
-                                    videoElement.remove();
-                                }
-                                break;
-                            case Hls.ErrorTypes.MEDIA_ERROR:
-                                hls.recoverMediaError();
-                                break;
-                            default:
-                                hls.destroy();
-                                break;
+        function initializeArtPlayer(elementId, url, retryCount = 3) {
+            var art = new Artplayer({
+                container: `#${elementId}`,
+                url: url,
+                type: getFormat(url) === 'flv' ? 'flv' : 'm3u8',
+                autoSize: true,
+                fullscreen: true,
+                customType: {
+                    flv: function(video, url) {
+                        if (flvjs.isSupported()) {
+                            const flvPlayer = flvjs.createPlayer({
+                                type: 'flv',
+                                url: url,
+                            });
+                            flvPlayer.attachMediaElement(video);
+                            flvPlayer.load();
                         }
-                    }
-                });
-            } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-                videoElement.src = url;
-                videoElement.addEventListener('loadedmetadata', function() {
-                    adjustVideoSize();
-                });
-                videoElement.play();
-                videoElement.addEventListener('error', function() {
-                    if (retryCount > 0) {
-                        toastr.error('视频流加载失败，正在重试...');
-                        setTimeout(() => {
-                            videoElement.load();
-                            retryCount--;
-                        }, 60000); // 60秒后重试
-                    } else {
-                        toastr.error('视频流加载失败，请删除...');
-                        videoElement.remove();
-                    }
-                });
-            }
+                    },
+                    m3u8: function(video, url) {
+                        if (Hls.isSupported()) {
+                            const hls = new Hls();
+                            hls.loadSource(url);
+                            hls.attachMedia(video);
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                            video.src = url;
+                        }
+                    },
+                },
+            });
+
+            art.on('video:loadedmetadata', function() {
+                adjustVideoSize();
+            });
+
+            art.on('error', function() {
+                if (retryCount > 0) {
+                    toastr.error('视频流加载失败，正在重试...');
+                    setTimeout(() => {
+                        initializeArtPlayer(elementId, url, retryCount - 1);
+                    }, 60000); // 60秒后重试
+                } else {
+                    toastr.error('视频流加载失败，隐藏窗口...');
+                    art.destroy();
+                    document.getElementById(elementId).remove();
+                }
+            });
         }
 
         function getFormat(url) {
@@ -243,28 +221,19 @@
             return match ? match[1].toLowerCase() : '';
         }
 
-        function initializePlayer(elementId, url) {
-            var format = getFormat(url);
-            if (format === 'flv') {
-                initializeFlvPlayer(elementId, url);
-            } else if (format === 'm3u8') {
-                initializeHlsPlayer(elementId, url);
-            }
-        }
-
         function addVideoToDOM(video) {
             var isNumeric = /^\d+$/.test(video.raw_link);
             var displayLink = isNumeric ? 'https://live.bilibili.com/' + video.raw_link : video.raw_link;
             var videoItem = `
                 <div class="video-item" data-id="${video.id}">
-                    <div class="video-wrapper">
-                        <video id="video${video.id}" controls></video>
+                    <div class="video-wrapper" id="video${video.id}">
+                        <video controls></video>
                     </div>
                     <button class="copy-link" data-link="${displayLink}">${displayLink}</button>
-                    <button class="delete-button" style="right: 10px; font-size: 12px;" data-id="${video.id}">删除</button>
+                    <button class="delete-button" style="position: absolute; top: 10px; right: 10px; font-size: 12px;" data-id="${video.id}">删除</button>
                 </div>`;
             $("#video-container").append(videoItem);
-            initializePlayer("video" + video.id, video.link);
+            initializeArtPlayer("video" + video.id, video.link);
         }
 
         function copyToClipboard(text) {
@@ -277,7 +246,7 @@
             document.body.removeChild(tempInput);
             toastr.success('链接已复制到剪贴板');
         }
-        
+
         $(document).ready(function() {
             function getRandomColor() {
                 var letters = '0123456789ABCDEF';
