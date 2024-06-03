@@ -52,12 +52,6 @@
         .delete-button:hover {
             background: rgba(255, 255, 255, 1); /* 悬停效果 */
         }
-
-        body {
-            background-image: url('https://t.mwm.moe/ycy/');
-            background-repeat: no-repeat;
-            background-size: cover;
-        }
     </style>
 </head>
 <body>
@@ -106,31 +100,20 @@
 
         $(document).on("click", ".delete-button", function() {
             var idToRemove = $(this).data("id");
-            var secretKey = prompt("请输入密钥：");
-            if (secretKey) {
-                $(this).parent().remove();
-                $.post("/delete_video_iframe", {iframe_id: idToRemove, secret_key: secretKey}, function(response) {
-                    if (response.error) {
-                        alert(response.error);
-                    }
-                });
-                adjustVideoSize();
-            }
+            $(this).parent().remove();
+            $.post("/delete_video_iframe", {iframe_id: idToRemove});
+            adjustVideoSize();
         });
 
         $("#delete-all").click(function() {
-            var secretKey = prompt("请输入密钥：");
-            if (secretKey) {
-                $.post("/delete_all_videos", {secret_key: secretKey}, function(response) {
-                    if (response.success) {
-                        $(".video-item").remove();
-                    } else if (response.error) {
-                        alert(response.error);
-                    }
+            var confirmation = confirm("确定删除所有视频吗？");
+            if (confirmation) {
+                $.post("/delete_all_videos", function() {
+                    $(".video-item").remove();
                 });
             }
         });
-        
+
         $("#play-all").click(function() {
             for (var i = 0; i < videoLinks.length; i++) {
                 var videoItem = $(videoLinks[i]);

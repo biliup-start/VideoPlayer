@@ -36,20 +36,21 @@ jobs:
 
     - name: Check for changes
       id: changes
+      if: github.event_name == 'schedule'
       run: |
-        git diff --quiet api && echo "api_changed=true" >> $GITHUB_ENV
-        git diff --quiet biliup && echo "biliup_changed=true" >> $GITHUB_ENV
+        git diff --name-only | grep api/ && echo "api_changed=true" >> $GITHUB_ENV || echo "api_changed=false" >> $GITHUB_ENV
+        git diff --name-only | grep biliup/ && echo "biliup_changed=true" >> $GITHUB_ENV || echo "biliup_changed=false" >> $GITHUB_ENV
 
     - name: Commit changes
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
       run: |
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
-        if [[ "${{ env.api_changed }}" == "true" ]]; then
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" || "${{ env.api_changed }}" == "true" ]]; then
           git add api/*
           git commit -m "同步上游 SmallPeaches/DanmakuRender api"
         fi
-        if [[ "${{ env.biliup_changed }}" == "true" ]]; then
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" || "${{ env.biliup_changed }}" == "true" ]]; then
           git add biliup/*
           git commit -m "同步上游 SmallPeaches/DanmakuRender biliup"
         fi
@@ -69,13 +70,13 @@ jobs:
         echo "new_version=${NEW_TAG}" >> $GITHUB_ENV
 
     - name: Create git tag
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
       run: |
         git tag ${{ env.new_version }}
         git push origin ${{ env.new_version }}
 
     - name: Package and Release
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
       run: |
         tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=upstream_repo --exclude=README.md --exclude=requirements.txt *
         cp VideoPlayer.tar.gz Example.tar.gz
@@ -85,7 +86,7 @@ jobs:
         tar -czvf Example.tar.gz --exclude=.git --exclude=VideoPlayer.tar.gz --exclude=Example.tar.gz --exclude=upstream_repo --exclude=Example --exclude=README.md --exclude=requirements.txt *
 
     - name: Create Release
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
       id: create_release
       uses: actions/create-release@v1
       env:
@@ -97,7 +98,7 @@ jobs:
         prerelease: false
 
     - name: Upload Release Asset 1
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
       id: upload-release-asset1
       uses: actions/upload-release-asset@v1
       env:
@@ -109,7 +110,7 @@ jobs:
         asset_content_type: application/gzip
 
     - name: Upload Release Asset 2
-      if: steps.changes.outputs.api_changed == 'true' || steps.changes.outputs.biliup_changed == 'true'
+      if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
       id: upload-release-asset2
       uses: actions/upload-release-asset@v1
       env:
