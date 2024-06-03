@@ -59,7 +59,7 @@ jobs:
     - name: Get latest release tag
       id: latesttag
       run: |
-        latest_tag=$(git tag --sort=-creatordate | head -n 1)
+        latest_tag=$(git tag --sort=-v:refname | head -n 1)
         if [ -z "$latest_tag" ]; then
           latest_tag="v0.0.0"
         fi
