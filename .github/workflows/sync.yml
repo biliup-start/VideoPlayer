@@ -9,11 +9,6 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-    - name: Set git identity
-      run: |
-        git config --global user.email "actions@github.com"
-        git config --global user.name "GitHub Actions"
-
     - name: Checkout
       uses: actions/checkout@v4
       with:
@@ -75,19 +70,13 @@ jobs:
       id: semver
       run: |
         IFS='.' read -ra VERSION_PARTS <<< "${{ env.tag }}"
-        PATCH=$((VERSION_PARTS[3] + 1))
+        PATCH=$((VERSION_PARTS[2] + 1))
         NEW_TAG="v${VERSION_PARTS[1]}.${VERSION_PARTS[2]}.${PATCH}"
         echo "new_version=${NEW_TAG}" >> $GITHUB_ENV
-
+        
     - name: Update version file
       run: |
         echo "${{ env.new_version }}" > static/version.txt
-
-    - name: Commit version file
-      run: |
-        git add static/version.txt
-        git commit -m "Update version file"
-        git push origin main
 
     - name: Create git tag
       if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
@@ -98,7 +87,7 @@ jobs:
     - name: Package and Release
       if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
       run: |
-        tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=upstream_repo --exclude=README.md --exclude=requirements.txt --exclude=static/version.txt*
+        tar -czvf VideoPlayer.tar.gz --exclude=.git --exclude=Example --exclude=upstream_repo --exclude=README.md --exclude=requirements.txt --exclude=static/version.txt *
         cp VideoPlayer.tar.gz Example.tar.gz
         tar -xvf Example.tar.gz
         cp Example/main.py .
@@ -110,7 +99,7 @@ jobs:
       id: create_release
       uses: actions/create-release@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.PAT }} # 这是你的GitHub令牌
+        GITHUB_TOKEN: ${{ secrets.PAT }}
       with:
         tag_name: ${{ env.new_version }}
         release_name: VideoPlayer ${{ env.new_version }}
@@ -124,7 +113,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.PAT }}
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }} 
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./VideoPlayer.tar.gz
         asset_name: VideoPlayer.tar.gz
         asset_content_type: application/gzip
@@ -136,7 +125,16 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.PAT }}
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }} 
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./Example.tar.gz
         asset_name: Example.tar.gz
         asset_content_type: application/gzip
+
+    - name: Commit version file
+      if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
+      run: |
+        git config --global user.email "actions@github.com"
+        git config --global user.name "GitHub Actions"
+        git add static/version.txt
+        git commit -m "Update version file"
+        git push origin main
