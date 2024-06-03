@@ -61,10 +61,9 @@ jobs:
       run: |
         latest_tag=$(git tag --sort=-creatordate | head -n 1)
         if [ -z "$latest_tag" ]; then
-          echo "tag=v0.0.0" >> $GITHUB_ENV
-        else
-          echo "tag=${latest_tag}" >> $GITHUB_ENV
+          latest_tag="v0.0.1"
         fi
+        echo "tag=${latest_tag}" >> $GITHUB_ENV
         
     - name: Calculate new version
       id: semver
