@@ -69,8 +69,8 @@ jobs:
       id: semver
       run: |
         IFS='.' read -ra VERSION_PARTS <<< "${{ env.tag }}"
-        PATCH=$((VERSION_PARTS[2] + 1))
-        NEW_TAG="${PATCH}.${VERSION_PARTS[1]}.${VERSION_PARTS[2]}"
+        PATCH=$((VERSION_PARTS[3] + 1))
+        NEW_TAG="v${VERSION_PARTS[1]}.${VERSION_PARTS[2]}.${PATCH}"
         echo "new_version=${NEW_TAG}" >> $GITHUB_ENV
 
     - name: Create git tag
