@@ -115,15 +115,6 @@ jobs:
         asset_name: Example.tar.gz
         asset_content_type: application/gzip
 
-    - name: Commit version file
-      if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
-      run: |
-        git config --global user.email "actions@github.com"
-        git config --global user.name "GitHub Actions"
-        git add static/version.txt
-        git commit -m "更新 version"
-        git push origin main
-
     - name: Commit other changes
       if: env.api_changed == 'true' || env.biliup_changed == 'true'
       run: |
@@ -131,4 +122,13 @@ jobs:
         git config --global user.name "GitHub Actions"
         git add biliup/* api/*
         git commit -m "同步上游 SmallPeaches/DanmakuRender"
+        git push origin main
+        
+    - name: Commit version file
+      if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
+      run: |
+        git config --global user.email "actions@github.com"
+        git config --global user.name "GitHub Actions"
+        git add static/version.txt
+        git commit -m "更新 version"
         git push origin main
