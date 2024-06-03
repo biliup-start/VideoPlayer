@@ -56,7 +56,7 @@ jobs:
       run: |
         IFS='.' read -ra VERSION_PARTS <<< "${{ env.tag }}"
         PATCH=$((VERSION_PARTS[2] + 1))
-        NEW_TAG="v${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.${PATCH}"
+        NEW_TAG="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.${PATCH}"
         echo "new_version=${NEW_TAG}" >> $GITHUB_ENV
         
     - name: Update version file
@@ -125,7 +125,7 @@ jobs:
         git push origin main
 
     - name: Commit other changes
-      if: github.event_name == 'workflow_dispatch' || env.api_changed == 'true' || env.biliup_changed == 'true'
+      if: env.api_changed == 'true' || env.biliup_changed == 'true'
       run: |
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
