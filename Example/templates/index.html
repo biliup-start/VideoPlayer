@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>直播流播放器 - 演示版</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/flv.js/1.6.2/flv.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.9/hls.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastr/build/toastr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/toastr/toastr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flv.js/dist/flv.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js/dist/hls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/socket.io/client-dist/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
     <style>
         .video-container {
@@ -22,8 +22,8 @@
         .video-item {
             position: relative;
             box-sizing: border-box;
-            margin: 20px;
-            flex-basis: 25%;
+            margin: calc(100% / 77);
+            flex-basis: calc(100% / 4);
             width: calc(100% / 4);
             height: auto;
         }
@@ -136,6 +136,8 @@
 
     <script>
         const socket = io();
+        const retryLimit = 5;
+        const retryCounters = {};
 
         socket.on('update_stream', function(data) {
             const videoElement = document.getElementById(`video${data.id}`);
@@ -148,6 +150,10 @@
                 });
                 toastr.info('视频流已更新，请刷新页面。');
             }
+        });
+
+        socket.on('notify_user', function(data) {
+            toastr.info(data.message);
         });
 
         function adjustVideoSize() {
@@ -167,13 +173,37 @@
             });
         }
 
-        function initializeArtPlayer(elementId, url, retryCount = 3) {
+        function handleArtPlayerError(elementId, url) {
+            retryCounters[elementId]++;
+            if (retryCounters[elementId] < retryLimit) {
+                toastr.error('视频流加载失败，正在重试...');
+                setTimeout(() => {
+                    initializeArtPlayer(elementId, url);
+                }, 60000);
+            } else {
+                toastr.error('视频流加载失败，请手动删除...');
+                document.getElementById(elementId).remove();
+            }
+        }
+
+        function initializeArtPlayer(elementId, url) {
+            if (!(elementId in retryCounters)) {
+                retryCounters[elementId] = 0;
+            }
+
+            if (retryCounters[elementId] >= retryLimit) {
+                toastr.error('视频流加载失败，请手动删除...');
+                return;
+            }
+
             var art = new Artplayer({
                 container: `#${elementId}`,
                 url: url,
                 type: getFormat(url) === 'flv' ? 'flv' : 'm3u8',
                 autoSize: true,
                 fullscreen: true,
+                isLive: true,
+                screenshot: true,
                 customType: {
                     flv: function(video, url) {
                         if (flvjs.isSupported()) {
@@ -202,16 +232,7 @@
             });
 
             art.on('error', function() {
-                if (retryCount > 0) {
-                    toastr.error('视频流加载失败，正在重试...');
-                    setTimeout(() => {
-                        initializeArtPlayer(elementId, url, retryCount - 1);
-                    }, 60000); // 60秒后重试
-                } else {
-                    toastr.error('视频流加载失败，隐藏窗口...');
-                    art.destroy();
-                    document.getElementById(elementId).remove();
-                }
+                handleArtPlayerError(elementId, url);
             });
         }
 
@@ -233,6 +254,7 @@
                     <button class="delete-button" style="position: absolute; top: 10px; right: 10px; font-size: 12px;" data-id="${video.id}">删除</button>
                 </div>`;
             $("#video-container").append(videoItem);
+            retryCounters[`video${video.id}`] = 0;
             initializeArtPlayer("video" + video.id, video.link);
         }
 
@@ -369,7 +391,7 @@
                 marquee.css("animation-play-state", "running");
             });
 
-            setMarqueeAnimation(30); // 初始速度
+            setMarqueeAnimation(30); 
         });
     </script>
 </body>

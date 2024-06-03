@@ -1,6 +1,5 @@
 # 使用到DanmakuRender数据库中的api复制来的基本没改，懒能动就行。
 # 哔哩哔哩cookie文件请保存在biliup/cookies.json，否则不知道是否会出错没测试。
-# 导入所需的库
 import logging
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify
@@ -10,9 +9,7 @@ from sqlalchemy.orm import Session
 from flask_socketio import SocketIO, emit
 import re
 import requests
-import threading
 import time
-import os
 from api.douyu import douyu
 from api.huya import huya
 from api.twitch import twitch
@@ -20,62 +17,45 @@ from api.douyin import douyin
 from api.cc import cc
 from api.bilibili import bilibili
 
-# 创建一个logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-# 创建一个handler，用于写入日志文件
 logfile = './log.txt'
 fh = logging.FileHandler(logfile, mode='a')
 fh.setLevel(logging.DEBUG)
-
-# 再创建一个handler，用于输出到控制台
 ch = logging.StreamHandler()
 ch.setLevel(logging.WARNING)
-
-# 定义handler的输出格式
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 fh.setFormatter(formatter)
 ch.setFormatter(formatter)
-
-# 给logger添加handler
 logger.addHandler(fh)
 logger.addHandler(ch)
 
-# 初始化Flask应用
 app = Flask(__name__)
 app.debug = True
-app.secret_key = 'CkHB02PVQPsAw7djGJl14Qll9FbNVSyEXWjPoXKUludGIXR9R'  # 请替换为你的密钥
+app.secret_key = 'IruDahIYD9cSq39gHwXTSv2BfMQiRvVsgO7LXRDBpKCjysk'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# 初始化数据库
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
-
-# 初始化SocketIO
 socketio = SocketIO(app)
 
-session = Session()
-
-# 定义VideoLink模型
 class VideoLink(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    raw_link = db.Column(db.String(255), nullable=False)  # 新增：原始链接
-    link = db.Column(db.String(255), nullable=False)  # 处理后的流链接
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # 添加时间戳字段
-    last_checked = db.Column(db.DateTime, default=datetime.utcnow)  # 最后一次检查时间
+    raw_link = db.Column(db.String(255), nullable=False)
+    link = db.Column(db.String(255), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    last_checked = db.Column(db.DateTime, default=datetime.utcnow)
+    attempts = db.Column(db.Integer, default=0)
 
-class iframeLink(db.Model):
+class IframeLink(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     link = db.Column(db.String(255), nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # 添加时间戳字段
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-# 创建所有数据库表
 with app.app_context():
     db.create_all()
 
-# 定义处理各个平台的函数
 def handle_huya(raw_link):
     match_huya = re.match(r'https://www\.huya\.com/(\w+)', raw_link)
     if match_huya:
@@ -124,94 +104,92 @@ def handle_bilibili(raw_link):
         return api.get_stream_url()
     return None
 
-# 检查输入是否只包含数字
 def handle_numeric_bilibili(raw_link):
     if raw_link.isdigit():
         bilibili_link = f'https://live.bilibili.com/{raw_link}'
-        stream_url = handle_bilibili(bilibili_link)
-        return stream_url
-    else:
-        return None
+        return handle_bilibili(bilibili_link)
+    return None
 
 def handle_numeric_iframe(raw_link):
     if raw_link.isdigit():
         bilibili_link = f'https://live.bilibili.com/{raw_link}'
-        iframe_url = iframe_bilibili(bilibili_link)
-        return iframe_url
-    else:
-        return None
+        return iframe_bilibili(bilibili_link)
+    return None
 
-# 定义处理iframe直播链接的函数
 def iframe_huya(raw_link):
     match_huya = re.match(r'https://www\.huya\.com/(\d+)', raw_link)
     if match_huya:
         rid = match_huya.group(1)
-        return f'<iframe width="100%" height="100%"  frameborder="0" scrolling="no" src="https://liveshare.huya.com/iframe/{rid}"></iframe>'
+        return f'<iframe width="100%" height="100%" frameborder="0" scrolling="no" src="https://liveshare.huya.com/iframe/{rid}"></iframe>'
     return None
 
 def iframe_bilibili(raw_link):
     match_bilibili = re.match(r'https://live\.bilibili\.com/(\d+)', raw_link)
-    if match_bilibili:  
+    if match_bilibili:
         cid = match_bilibili.group(1)
-        iframe_link = f'<div class="video-wrapper"><iframe src="https://www.bilibili.com/blackboard/live/live-activity-player.html?enterTheRoom=0&cid={cid}&autoplay=0&mute=1" frameborder="no" framespacing="0" scrolling="no" allow="autoplay; encrypted-media" allowfullscreen="true"></iframe></div>'
-        return iframe_link
+        return f'<div class="video-wrapper"><iframe src="https://www.bilibili.com/blackboard/live/live-activity-player.html?enterTheRoom=0&cid={cid}&autoplay=0&mute=1" frameborder="no" framespacing="0" scrolling="no" allow="autoplay; encrypted-media" allowfullscreen="true"></iframe></div>'
     return None
 
-# 定义路由和视图函数
 @app.route('/', methods=['GET'])
 def home():
     video_links = VideoLink.query.all()
-    iframe_links = iframeLink.query.all()
+    iframe_links = IframeLink.query.all()
     return render_template('index.html', video_links=video_links)
 
 @app.route('/iframe.html', methods=['GET'])
 def iframe():
-    iframe_links = iframeLink.query.all() 
-    return render_template('iframe.html', iframe_links=iframe_links) 
+    iframe_links = IframeLink.query.all()
+    return render_template('iframe.html', iframe_links=iframe_links)
 
 @app.route('/add_video', methods=['POST'])
 def add_video():
     raw_link = request.form.get('video_link')
-    stream_url = (
-        handle_huya(raw_link) or 
-        handle_douyu(raw_link) or 
-        handle_twitch(raw_link) or 
-        handle_douyin(raw_link) or 
-        handle_cc(raw_link) or 
-        handle_bilibili(raw_link) or 
-        handle_numeric_bilibili(raw_link) or  
-        raw_link  
-    )
-    if stream_url:
-        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
-        existing_link = VideoLink.query.filter_by(raw_link=raw_link).filter(VideoLink.timestamp >= one_hour_ago).first()
-        if existing_link:
-            return jsonify(error="提示：相同链接一个小时只能输入一次"), 400
+    try:
+        stream_url = (
+            handle_huya(raw_link) or 
+            handle_douyu(raw_link) or 
+            handle_twitch(raw_link) or 
+            handle_douyin(raw_link) or 
+            handle_cc(raw_link) or 
+            handle_bilibili(raw_link) or 
+            handle_numeric_bilibili(raw_link) or  
+            None
+        )
+        if stream_url:
+            existing_link = VideoLink.query.filter_by(raw_link=raw_link).first()
+            if existing_link:
+                return jsonify(error="提示：相同链接一个小时只能输入一次"), 400
 
-        video_link = VideoLink(raw_link=raw_link, link=stream_url, timestamp=datetime.utcnow(), last_checked=datetime.utcnow())
-        db.session.add(video_link)
-        db.session.commit()
-
-        return jsonify(id=video_link.id, raw_link=video_link.raw_link, link=video_link.link)
-    else:
-        return jsonify(error="无效的链接"), 400
+            video_link = VideoLink(raw_link=raw_link, link=stream_url, timestamp=datetime.utcnow(), last_checked=datetime.utcnow())
+            db.session.add(video_link)
+            db.session.commit()
+            return jsonify(id=video_link.id, raw_link=video_link.raw_link, link=video_link.link)
+        else:
+            return jsonify(error="无效的链接"), 400
+    except Exception as e:
+        logger.error(f"Error adding video: {e}")
+        return jsonify(error="未开播或无法获取流"), 500
 
 @app.route('/add_video_iframe', methods=['POST'])
 def add_video_iframe():
     raw_link = request.form.get('iframe_link')
-    stream_url = (
-        iframe_huya(raw_link) or 
-        iframe_bilibili(raw_link) or 
-        handle_numeric_iframe(raw_link) or 
-        raw_link  
-    )
-    if stream_url:
-        iframe_link = iframeLink(link=stream_url)
-        db.session.add(iframe_link)
-        db.session.commit()
-        return jsonify(id=iframe_link.id, link=iframe_link.link)
-    else:
-        return jsonify(error="无法获取 iframe 链接"), 400
+    try:
+        stream_url = (
+            iframe_huya(raw_link) or 
+            iframe_bilibili(raw_link) or 
+            handle_numeric_iframe(raw_link) or 
+            None
+        )
+        if stream_url:
+            iframe_link = IframeLink(link=stream_url)
+            db.session.add(iframe_link)
+            db.session.commit()
+            return jsonify(id=iframe_link.id, link=iframe_link.link)
+        else:
+            return jsonify(error="无法获取 iframe 链接"), 400
+    except Exception as e:
+        logger.error(f"Error adding iframe video: {e}")
+        return jsonify(error="未开播或无法获取流"), 500
 
 @app.route('/delete_video_iframe', methods=['POST'])
 def delete_video_iframe():
@@ -222,7 +200,7 @@ def delete_video_iframe():
         return jsonify(error="无效的密钥"), 403
 
     if iframe_id is not None:
-        iframe_link = db.session.get(iframeLink, iframe_id)
+        iframe_link = db.session.get(IframeLink, iframe_id)
         if iframe_link:
             db.session.delete(iframe_link)
             db.session.commit()
@@ -231,38 +209,47 @@ def delete_video_iframe():
             return jsonify(error="未找到 iframe 视频"), 404
     else:
         return jsonify(error="iframe_id 为空"), 400
+
 @app.route('/delete_video', methods=['POST'])
 def delete_video():
-    video_id = request.form['video_id']
-    secret_key = request.form['secret_key']
+    video_id = request.form.get('video_id')
+    secret_key = request.form.get('secret_key')
     
     if secret_key != app.secret_key:
-        logger.warning("Invalid secret key attempted.")
+        logger.warning("无效的密钥尝试。")
         return jsonify(error="无效的密钥"), 403
 
-    video = VideoLink.query.get(video_id)
-    if video:
-        db.session.delete(video)
-        db.session.commit()
-        logger.info(f"Video {video_id} deleted successfully.")
-        return jsonify(success=True)
-    else:
-        logger.error(f"Video {video_id} not found.")
-        return jsonify(error="视频未找到"), 404
+    try:
+        video = VideoLink.query.get(video_id)
+        if video:
+            db.session.delete(video)
+            db.session.commit()
+            logger.info(f"视频 {video_id} 成功删除。")
+            return jsonify(success=True)
+        else:
+            logger.error(f"视频 {video_id} 未找到.")
+            return jsonify(error="视频未找到"), 404
+    except Exception as e:
+        logger.error(f"Error deleting video: {e}")
+        return jsonify(error="服务器内部错误"), 500
 
 @app.route('/delete_all_videos', methods=['POST'])
 def delete_all_videos():
-    secret_key = request.form['secret_key']
+    secret_key = request.form.get('secret_key')
     
     if secret_key != app.secret_key:
-        logger.warning("Invalid secret key attempted.")
+        logger.warning("无效的密钥尝试。")
         return jsonify(error="无效的密钥"), 403
 
-    VideoLink.query.delete()
-    iframeLink.query.delete()  
-    db.session.commit()
-    logger.info("All videos deleted successfully.")
-    return jsonify(success=True)
+    try:
+        VideoLink.query.delete()
+        IframeLink.query.delete()
+        db.session.commit()
+        logger.info("旧视频已删除。")
+        return jsonify(success=True)
+    except Exception as e:
+        logger.error(f"Error deleting all videos: {e}")
+        return jsonify(error="服务器内部错误"), 500
 
 @app.route('/get_video_links', methods=['GET'])
 def get_video_links():
@@ -272,27 +259,26 @@ def get_video_links():
 def delete_old_videos():
     while True:
         with app.app_context():
-            cutoff = datetime.utcnow() - timedelta(hours=1)
-            old_videos = VideoLink.query.filter(VideoLink.last_checked < cutoff).all()
+            cutoff = datetime.utcnow() - timedelta(hours=48)
+            old_videos = VideoLink.query.filter(VideoLink.timestamp < cutoff).all()
             for video in old_videos:
                 db.session.delete(video)
+                logger.info(f"视频在过去48小时内没有被推送，已被删除: {video.id}")
             db.session.commit()
-        logger.info("Old videos deleted.")
-        time.sleep(60)  # 每分钟运行一次
+        time.sleep(60*60)
 
 socketio.start_background_task(delete_old_videos)
 
 def check_video_streams():
-    max_attempts = 2
-    attempts = 0
-    while attempts < max_attempts:
+    max_attempts = 60
+    while True:
         with app.app_context():
             video_links = VideoLink.query.all()
             for video in video_links:
                 try:
                     response = requests.head(video.link, timeout=5)
                     if response.status_code < 200 or response.status_code >= 400:
-                        logger.warning(f"Invalid stream detected, re-fetching: {video.link}")
+                        logger.warning(f"检测到无效的流，正在重新获取：{video.link}")
                         new_stream_url = (
                             handle_huya(video.raw_link) or 
                             handle_douyu(video.raw_link) or 
@@ -301,23 +287,33 @@ def check_video_streams():
                             handle_cc(video.raw_link) or 
                             handle_bilibili(video.raw_link) or 
                             handle_numeric_bilibili(video.raw_link) or  
-                            None  
+                            None
                         )
                         if new_stream_url:
                             video.link = new_stream_url
                             video.last_checked = datetime.utcnow()
+                            video.attempts = 0  # Reset attempts if successful
                             db.session.commit()
                             socketio.emit('update_stream', {'id': video.id, 'link': new_stream_url})
+                            socketio.emit('notify_user', {'message': f"Stream {video.id} has been refreshed."})
+                        else:
+                            video.attempts += 1
+                            db.session.commit()
+                            socketio.emit('notify_user', {'message': f"Attempt {video.attempts} to refresh stream {video.id} failed."})
+                            if video.attempts >= max_attempts:
+                                db.session.delete(video)
+                                logger.info(f"失效视频流一个小时内多次重试还是失效已删除: {video.id}")
+                                socketio.emit('notify_user', {'message': f"Invalid stream {video.id} has been deleted after multiple retries."})
+                                db.session.commit()
                     else:
                         video.last_checked = datetime.utcnow()
+                        video.attempts = 0
                         db.session.commit()
                 except Exception as e:
-                    logger.error(f"Error checking video stream: {e}")
+                    logger.error(f"检查视频流时出错：{e}")
         time.sleep(60)
-        attempts += 1
 
 socketio.start_background_task(check_video_streams)
 
-# 启动Flask应用
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5002, debug=True, allow_unsafe_werkzeug=True)

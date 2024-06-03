@@ -1,13 +1,19 @@
+<!-- File path: templates/index.html -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>直播流播放器</title>
+    <title>直播流播放器 - 演示版</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/flv.js/1.6.2/flv.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.9/hls.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastr/build/toastr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/toastr/toastr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flv.js/dist/flv.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js/dist/hls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/socket.io/client-dist/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
     <style>
         .video-container {
             display: flex;
@@ -18,14 +24,16 @@
         .video-item {
             position: relative;
             box-sizing: border-box;
-            margin: 10px;
-            flex-basis: calc(100% / 11);  
+            margin: 5px;
+            flex-basis: 5%;
+            width: calc(100% / 11);
+            height: auto;
         }
 
         .video-wrapper {
             position: relative;
-            width: 400px;  /* 初始宽度 */
-            height: 236px;  /* 初始高度 */
+            width: 400px;
+            height: 236px;
         }
 
         video {
@@ -33,48 +41,129 @@
             height: 100%;
         }
 
+        .copy-link {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .copy-link:hover {
+            background: rgba(255, 255, 255, 0.7);
+        }
+
+        .fullscreen-button {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0);
+            border: none;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
         .delete-button {
             position: absolute;
             top: 10px;
             right: 10px;
             z-index: 10;
-            background: rgba(255, 255, 255, 0.7); /* 透明样式 */
+            background: rgba(255, 255, 255, 0.7);
             border: none;
             cursor: pointer;
         }
 
         .delete-button:hover {
-            background: rgba(255, 255, 255, 1); /* 悬停效果 */
+            background: rgba(255, 255, 255, 1);
+        }
+
+        .marquee-container {
+            width: 100%;
+            overflow: hidden;
+            background: transparent;
+            white-space: nowrap;
+            box-sizing: border-box;
+            padding: 10px 0;
+        }
+
+        .marquee {
+            display: inline-block;
+            padding-left: 100%;
+            font-weight: bold;
+            font-size: 24px;
+            -webkit-background-clip: text;
+            color: transparent;
+            animation: marquee 30s linear infinite paused;
+        }
+
+        @keyframes marquee {
+            from {
+                transform: translateX(100%);
+            }
+            to {
+                transform: translateX(-100%);
+            }
+        }
+
+        body {
+            background-image: url('https://t.mwm.moe/ycy/');
+            background-repeat: no-repeat;
+            background-size: cover;
         }
     </style>
 </head>
 <body>
     <form id="video-form" style="display: flex; justify-content: center; align-items: center;">
-        <input type="text" id="video_link" placeholder="请输入视频链接" required style="margin-right: 10px;">
+        <input type="text" id="video_link" name="video_link" placeholder="请输入视频链接" required style="margin-right: 10px;">
         <button type="submit" style="margin-right: 10px;">添加视频</button>
         <button type="button" id="play-all" style="margin-right: 10px;">播放所有</button>
         <button type="button" id="pause-all" style="margin-right: 10px;">暂停所有</button>
         <button type="button" id="delete-all" style="margin-right: 10px;">清除所有</button>
         <button type="button" id="switch-iframe" style="margin-right: 10px;" onclick="location.href='./iframe.html'">切换iframe</button>
     </form>
-    <div class="video-container" id="video-container">
-        {% for video_link in video_links %}
-            <div class="video-item">
-                <div class="video-wrapper">
-                    <video id="video{{ video_link.id }}" controls></video>
-                </div>
-                <button class="delete-button" data-id="{{ video_link.id }}">删除</button>
-            </div>
-        {% endfor %}
-    </div>
-    <script>
-        function adjustVideoSize() {
-            var videoCount = $(".video-item").length;  // 播放器的数量
-            var videosPerRow = Math.ceil(Math.sqrt(videoCount));  // 每行的播放器数量
-            var containerWidth = $("#video-container").width();  // 容器的宽度
 
-            var videoWidth = containerWidth / videosPerRow;  // 播放器的宽度
-            var videoHeight = videoWidth * 9 / 16;  // 播放器的高度，假设宽高比为16:9
+    <div class="marquee-container">
+        <div class="marquee">这是项目的示例，实际应用请自行部署；谢谢！！</div>
+    </div>
+
+    <div class="video-container" id="video-container">
+        <!-- 视频列表将通过JavaScript动态添加 -->
+    </div>
+
+    <script>
+        const socket = io();
+
+        socket.on('update_stream', function(data) {
+            const videoElement = document.getElementById(`video${data.id}`);
+            if (videoElement) {
+                const currentTime = videoElement.currentTime;
+                videoElement.src = data.link;
+                videoElement.addEventListener('loadedmetadata', function() {
+                    videoElement.currentTime = currentTime;
+                    videoElement.play();
+                });
+                toastr.info('视频流已更新，请刷新页面。');
+            }
+        });
+
+        socket.on('notify_user', function(data) {
+            toastr.info(data.message);
+        });
+
+        function adjustVideoSize() {
+            var videoCount = $(".video-item").length;
+            var videosPerRow = Math.ceil(Math.sqrt(videoCount));
+            var containerWidth = $("#video-container").width();
+
+            var videoWidth = containerWidth / videosPerRow;
+            videoWidth = videoWidth * 0.55;
+            var videoHeight = videoWidth * 9 / 16;
 
             $(".video-item").each(function() {
                 $(this).css({
@@ -84,49 +173,55 @@
             });
         }
 
-        function initializeFlvPlayer(elementId, url) {
-            if (flvjs.isSupported()) {
-                console.log(`Initializing FLV player for ${elementId} with URL: ${url}`);
-                var videoElement = document.getElementById(elementId);
-                var flvPlayer = flvjs.createPlayer({
-                    type: 'flv',
-                    url: url
-                });
-                flvPlayer.attachMediaElement(videoElement);
-                flvPlayer.load();
-                flvPlayer.on('loadedmetadata', function() {
-                    adjustVideoSize();  // 加载完成后调整播放器大小
-                });
-            } else {
-                console.log('FLV.js is not supported');
-            }
-        }
+        function initializeArtPlayer(elementId, url, retryCount = 3) {
+            var art = new Artplayer({
+                container: `#${elementId}`,
+                url: url,
+                type: getFormat(url) === 'flv' ? 'flv' : 'm3u8',
+                autoSize: true,
+                fullscreen: true,
+                isLive: true,
+                screenshot: true,
+                autoSize: true,
+                customType: {
+                    flv: function(video, url) {
+                        if (flvjs.isSupported()) {
+                            const flvPlayer = flvjs.createPlayer({
+                                type: 'flv',
+                                url: url,
+                            });
+                            flvPlayer.attachMediaElement(video);
+                            flvPlayer.load();
+                        }
+                    },
+                    m3u8: function(video, url) {
+                        if (Hls.isSupported()) {
+                            const hls = new Hls();
+                            hls.loadSource(url);
+                            hls.attachMedia(video);
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                            video.src = url;
+                        }
+                    },
+                },
+            });
 
-        function initializeHlsPlayer(elementId, url) {
-            var videoElement = document.getElementById(elementId);
-            if (Hls.isSupported()) {
-                console.log(`Initializing HLS player for ${elementId} with URL: ${url}`);
-                var hls = new Hls();
-                hls.loadSource(url);
-                hls.attachMedia(videoElement);
-                hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    console.log(`HLS manifest loaded for ${elementId}`);
-                    videoElement.play();
-                    adjustVideoSize();  // 加载完成后调整播放器大小
-                });
-                hls.on(Hls.Events.ERROR, function(event, data) {
-                    console.error(`HLS error for ${elementId}: ${data.type} - ${data.details}`);
-                });
-            } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-                console.log(`Native HLS support for ${elementId} with URL: ${url}`);
-                videoElement.src = url;
-                videoElement.addEventListener('loadedmetadata', function() {
-                    adjustVideoSize();  // 加载完成后调整播放器大小
-                });
-                videoElement.play();
-            } else {
-                console.log('HLS.js is not supported');
-            }
+            art.on('video:loadedmetadata', function() {
+                adjustVideoSize();
+            });
+
+            art.on('error', function() {
+                if (retryCount > 0) {
+                    toastr.error('视频流加载失败，正在重试...');
+                    setTimeout(() => {
+                        initializeArtPlayer(elementId, url, retryCount - 1);
+                    }, 60000); 
+                } else {
+                    toastr.error('视频流加载失败，隐藏窗口...');
+                    art.destroy();
+                    document.getElementById(elementId).remove();
+                }
+            });
         }
 
         function getFormat(url) {
@@ -135,70 +230,155 @@
             return match ? match[1].toLowerCase() : '';
         }
 
-        function initializePlayer(elementId, url) {
-            var format = getFormat(url);  // 从视频链接中获取格式
-            console.log(`Initializing player for ${elementId} with URL: ${url} and format: ${format}`);
-            if (format === 'flv') {
-                initializeFlvPlayer(elementId, url);
-            } else if (format === 'm3u8') {
-                initializeHlsPlayer(elementId, url);
-            } else {
-                console.log(`Unsupported format: ${format} for URL: ${url}`);
-            }
+        function addVideoToDOM(video) {
+            var isNumeric = /^\d+$/.test(video.raw_link);
+            var displayLink = isNumeric ? 'https://live.bilibili.com/' + video.raw_link : video.raw_link;
+            var videoItem = `
+                <div class="video-item" data-id="${video.id}">
+                    <div class="video-wrapper" id="video${video.id}">
+                        <video controls></video>
+                    </div>
+                    <button class="copy-link" data-link="${displayLink}">${displayLink}</button>
+                    <button class="delete-button" style="position: absolute; top: 10px; right: 10px; font-size: 12px;" data-id="${video.id}">删除</button>
+                </div>`;
+            $("#video-container").append(videoItem);
+            initializeArtPlayer("video" + video.id, video.link);
         }
 
-        $("#video-form").submit(function(e) {
-            e.preventDefault();
-            var videoLink = $("#video_link").val();
-            $.post("/add_video", {video_link: videoLink}, function(data) {
-                var newVideoItem = `
-                    <div class="video-item">
-                        <div class="video-wrapper">
-                            <video id="video${data.id}" controls></video>
-                        </div>
-                        <button class="delete-button" data-id="${data.id}">删除</button>
-                    </div>
-                `;
-                $("#video-container").append(newVideoItem);
-                initializePlayer(`video${data.id}`, data.link);
-            });
-        });
-
-        $(document).on("click", ".delete-button", function() {
-            var idToRemove = $(this).data("id");
-            $(this).parent().remove();
-            $.post("/delete_video", {video_id: idToRemove});
-        });
-
-        $("#delete-all").click(function() {
-            var confirmation = confirm("确定删除所有视频吗？");
-            if (confirmation) {
-                $.post("/delete_all_videos", function() {
-                    $(".video-item").remove();
-                });
-            }
-        });
-
-        $("#play-all").click(function() {
-            $("video").each(function() {
-                this.play();
-            });
-        });
-
-        $("#pause-all").click(function() {
-            $("video").each(function() {
-                this.pause();
-            });
-        });
+        function copyToClipboard(text) {
+            var tempInput = document.createElement("input");
+            tempInput.style = "position: absolute; left: -1000px; top: -1000px";
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempInput);
+            toastr.success('链接已复制到剪贴板');
+        }
 
         $(document).ready(function() {
+            function getRandomColor() {
+                var letters = '0123456789ABCDEF';
+                var color = '#';
+                for (var i = 0; i < 6; i++) {
+                    color += letters[Math.floor(Math.random() * 16)];
+                }
+                return color;
+            }
+            $('.marquee').html(function(i, html) {
+                var chars = $.trim(html).split("");
+                return '<span>' + chars.join('</span><span>') + '</span>';
+            });
+            $('.marquee span').each(function() {
+                $(this).css('color', getRandomColor());
+            });
+        });
+        
+        $(document).ready(function() {
+            $("#video-form").submit(function(e) {
+                e.preventDefault();
+                var videoLink = $("#video_link").val();
+                $.ajax({
+                    url: "/add_video",
+                    type: "POST",
+                    data: { video_link: videoLink },
+                    success: function(data) {
+                        toastr.success('视频链接已添加');
+                        addVideoToDOM(data);
+                        $("#video_link").val('');
+                        adjustVideoSize();
+                    },
+                    error: function(xhr, status, error) {
+                        var errorMessage = xhr.responseJSON.error;
+                        toastr.error(errorMessage, '无效链接');
+                    }
+                });
+            });
+
+            $(document).on("click", ".delete-button", function() {
+                var idToRemove = $(this).data("id");
+                var secretKey = prompt("请输入删除密钥:");
+                var videoItem = $(this).closest(".video-item");
+                if (secretKey) {
+                    $.post("/delete_video", { video_id: idToRemove, secret_key: secretKey }, function(data) {
+                        if (data.success) {
+                            toastr.success('视频已删除');
+                            videoItem.remove();
+                            adjustVideoSize();
+                        } else {
+                            toastr.error(data.error, '错误');
+                        }
+                    });
+                }
+            });
+
+            $(document).on("click", ".copy-link", function() {
+                var linkToCopy = $(this).data("link");
+                copyToClipboard(linkToCopy);
+            });
+
+            $("#delete-all").click(function() {
+                var secretKey = prompt("请输入删除密钥:");
+                if (secretKey) {
+                    $.post("/delete_all_videos", { secret_key: secretKey }, function(data) {
+                        if (data.success) {
+                            toastr.success('所有视频已删除');
+                            $(".video-item").remove();
+                            adjustVideoSize();
+                        } else {
+                            toastr.error(data.error, '错误');
+                        }
+                    });
+                }
+            });
+
+            $("#play-all").click(function() {
+                $("video").each(function() {
+                    this.play();
+                });
+            });
+
+            $("#pause-all").click(function() {
+                $("video").each(function() {
+                    this.pause();
+                });
+            });
+
             $.get("/get_video_links", function(data) {
                 for (var i = 0; i < data.length; i++) {
-                    var video_link = data[i];
-                    initializePlayer("video" + video_link.id, video_link.link);
+                    addVideoToDOM(data[i]);
                 }
-                adjustVideoSize();  // 页面加载完成后调整播放器大小
+                adjustVideoSize();
             });
+
+            var marquee = $(".marquee");
+
+            function setMarqueeAnimation(duration) {
+                marquee.css("animation", "marquee " + duration + "s linear infinite");
+            }
+
+            marquee.on("animationiteration", function() {
+                var marqueeWidth = marquee.width();
+                var containerWidth = $(".marquee-container").width();
+                var middlePosition = (containerWidth - marqueeWidth) / 2;
+                var middleReached = Math.abs(parseInt(marquee.css("transform").split(',')[4]) - middlePosition) < 10;
+
+                if (middleReached) {
+                    setMarqueeAnimation(60);
+                } else {
+                    setMarqueeAnimation(30);
+                }
+            });
+
+            marquee.on("mouseenter", function() {
+                marquee.css("animation-play-state", "paused");
+            });
+
+            marquee.on("mouseleave", function() {
+                marquee.css("animation-play-state", "running");
+            });
+
+            setMarqueeAnimation(30); 
         });
     </script>
 </body>
