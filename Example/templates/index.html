@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>直播流播放器 - 演示版</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastr/build/toastr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/toastr/toastr.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flv.js/dist/flv.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js/dist/hls.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/socket.io/client-dist/socket.io.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.1.4/toastr.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.1.4/toastr.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flv.js/1.6.2/flv.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.9/hls.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/artplayer/5.1.5/artplayer.js"></script>
     <style>
         .video-container {
             display: flex;
@@ -22,9 +22,9 @@
         .video-item {
             position: relative;
             box-sizing: border-box;
-            margin: calc(100% / 77);
-            flex-basis: calc(100% / 4);
-            width: calc(100% / 4);
+            margin: 20px;
+            flex-basis: 22%;
+            width: calc(100% / 11);
             height: auto;
         }
 
@@ -118,8 +118,8 @@
 </head>
 <body>
     <form id="video-form" style="display: flex; justify-content: center; align-items: center;">
-        <input type="text" id="video_link" name="video_link" placeholder="请输入视频链接" required style="margin-right: 10px;">
-        <button type="submit" style="margin-right: 10px;">添加视频</button>
+        <input type="text" id="video_link" name="video_link" placeholder="请输入直播间链接" required style="margin-right: 10px;">
+        <button type="submit" style="margin-right: 10px;">添加直播</button>
         <button type="button" id="play-all" style="margin-right: 10px;">播放所有</button>
         <button type="button" id="pause-all" style="margin-right: 10px;">暂停所有</button>
         <button type="button" id="delete-all" style="margin-right: 10px;">清除所有</button>
@@ -162,7 +162,7 @@
             var containerWidth = $("#video-container").width();
 
             var videoWidth = containerWidth / videosPerRow;
-            videoWidth = videoWidth * 0.7;
+            videoWidth = videoWidth * 0.77;
             var videoHeight = videoWidth * 9 / 16;
 
             $(".video-item").each(function() {
@@ -199,13 +199,12 @@
             var art = new Artplayer({
                 container: `#${elementId}`,
                 url: url,
-                type: getFormat(url) === 'flv' ? 'flv' : 'm3u8',
+                type: getFormat(url) === 'flv' ? 'flv' : (getFormat(url) === 'ts' ? 'ts' : 'm3u8'),
                 autoSize: true,
                 fullscreen: true,
                 isLive: true,
                 pip: true,
                 screenshot: true,
-                miniProgressBar: true,
                 fullscreenWeb: true,
                 aspectRatio: true,
                 flip: true,
@@ -230,6 +229,15 @@
                             video.src = url;
                         }
                     },
+                    ts: function(video, url) { // 添加对 ts 格式的支持
+                        if (Hls.isSupported()) {
+                            const hls = new Hls();
+                            hls.loadSource(url);
+                            hls.attachMedia(video);
+                        } else if (video.canPlayType('video/mp2t')) {
+                            video.src = url;
+                        }
+                    },
                 },
             });
 
@@ -248,15 +256,24 @@
             return match ? match[1].toLowerCase() : '';
         }
 
+        function truncateLink(link) {
+            const maxLength = 40;
+            if (link.length <= maxLength) {
+                return link;
+            }
+            const truncatedLink = link.slice(0, maxLength) + '...';
+            return truncatedLink;
+        }
+
         function addVideoToDOM(video) {
             var isNumeric = /^\d+$/.test(video.raw_link);
-            var displayLink = isNumeric ? 'https://live.bilibili.com/' + video.raw_link : video.raw_link;
+            var displayLink = isNumeric ? 'https://live.bilibili.com/' + video.raw_link : truncateLink(video.raw_link);
             var videoItem = `
                 <div class="video-item" data-id="${video.id}">
                     <div class="video-wrapper" id="video${video.id}">
                         <video controls></video>
                     </div>
-                    <button class="copy-link" data-link="${displayLink}">${displayLink}</button>
+                    <button class="copy-link" data-link="${video.raw_link}">${displayLink}</button>
                     <button class="delete-button" style="position: absolute; top: 10px; right: 10px; font-size: 12px;" data-id="${video.id}">删除</button>
                 </div>`;
             $("#video-container").append(videoItem);
@@ -308,7 +325,7 @@
                         adjustVideoSize();
                     },
                     error: function(xhr, status, error) {
-                        var errorMessage = xhr.responseJSON.error;
+                        var errorMessage = xhr.responseJSON ? xhr.responseJSON.error : '未知错误';
                         toastr.error(errorMessage, '错误');
                     }
                 });
@@ -369,7 +386,7 @@
                 }
                 adjustVideoSize();
             });
-
+            
             var marquee = $(".marquee");
 
             function setMarqueeAnimation(duration) {
