@@ -38,7 +38,7 @@ class FFprobe():
             except:
                 st = 0
             duration = float(res['format']['duration'])-st
-            return duration
+            return max(duration, 0)
         except:
             return -1
 

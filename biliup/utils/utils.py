@@ -25,6 +25,7 @@ __all__ = [
     'RGB2BGR',
     'uuid',
     'get_platform',
+    'safe_filename',
 ]
 
 
@@ -56,6 +57,15 @@ def rename_safe(src:str, dst:str, retry:int=10):
         time.sleep(0.1)
 
     return False
+
+def safe_filename(filename:str) -> str:
+    if not exists(filename):
+        return filename
+
+    if exists(filename):
+        cnt = len(glob.glob(splitext(filename)[0] + '*'))
+        filename = splitext(filename)[0] + f'({cnt})' + splitext(filename)[1]
+    return filename
 
 def isvideo(path: str) -> bool:
     ext = path.split('.')[-1]
