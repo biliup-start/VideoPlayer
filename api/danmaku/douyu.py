@@ -19,7 +19,7 @@ color_tab = {
 class Douyu(DMAPI):
     heartbeat = b"\x14\x00\x00\x00\x14\x00\x00\x00\xb1\x02\x00\x00\x74\x79\x70\x65\x40\x3d\x6d\x72\x6b\x6c\x2f\x00"
 
-    async def get_ws_info(url):
+    async def get_ws_info(url, **kwargs):
         reg_datas = []
         _, room_id = split_url(url)
         async with aiohttp.ClientSession() as session:

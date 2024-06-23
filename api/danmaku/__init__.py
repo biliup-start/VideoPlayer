@@ -48,7 +48,7 @@ class DanmakuClient:
         self.__ws = None
         self.__stop = False
         self._dm_queue = q
-        self.__extra_data = kwargs
+        self.__kwargs = kwargs
         if "http://" == url[:7] or "https://" == url[:8]:
             self.__url = url
         else:
@@ -63,7 +63,7 @@ class DanmakuClient:
             raise Exception(f'Error URL {url}')
 
     async def init_ws(self):
-        ws_url, reg_datas = await self.__site_api.get_ws_info(self.__url)
+        ws_url, reg_datas = await self.__site_api.get_ws_info(self.__url, **self.__kwargs)
         self.__ws = await self.__hs.ws_connect(ws_url, headers=getattr(self.__site_api, 'headers', {}))
         for reg_data in reg_datas:
             if type(reg_data) == str:

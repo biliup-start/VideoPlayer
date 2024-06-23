@@ -16,7 +16,7 @@ class Bilibili(DMAPI):
     }
     interval = 30
 
-    async def get_ws_info(url):
+    async def get_ws_info(url, **kwargs):
         url = "https://api.live.bilibili.com/room/v1/Room/room_init?id=" + url.split("/")[-1]
         reg_datas = []
         async with aiohttp.ClientSession(headers=Bilibili.headers) as session:

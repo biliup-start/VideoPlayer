@@ -13,7 +13,7 @@ class DMAPI():
     def heatbeat(self):
         raise NotImplementedError()
 
-    async def get_ws_info(url):
+    async def get_ws_info(url, **kwargs):
         raise NotImplementedError()
     
     def decode_msg(data):

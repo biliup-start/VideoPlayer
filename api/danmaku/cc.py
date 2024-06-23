@@ -254,7 +254,7 @@ class CC(DMAPI):
     s = CC_Init()
     heartbeat = s.get_beat()
 
-    async def get_ws_info(url):
+    async def get_ws_info(url, **kwargs):
         reg_datas = []
         cid = re.search(r'com/(\d+)', url).group(1)
         _url = 'https://api.cc.163.com/v1/activitylives/anchor/lives?anchor_ccid=' + str(cid)
