@@ -198,7 +198,7 @@
 
             var art = new Artplayer({
                 container: `#${elementId}`,
-                url: url,
+                url: url.replace(/^http:\/\//i, 'https://'), // Ensure HTTPS
                 type: getFormat(url) === 'flv' ? 'flv' : (getFormat(url) === 'ts' ? 'ts' : 'm3u8'),
                 autoSize: true,
                 fullscreen: true,
@@ -278,7 +278,7 @@
                 </div>`;
             $("#video-container").append(videoItem);
             retryCounters[`video${video.id}`] = 0;
-            initializeArtPlayer("video" + video.id, video.link);
+            initializeArtPlayer("video" + video.id, video.link.replace(/^http:\/\//i, 'https://'));
         }
 
         function copyToClipboard(text) {
