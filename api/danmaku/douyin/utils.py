@@ -22,11 +22,11 @@ class DouyinDanmakuUtils:
 
     @staticmethod
     def get_signature(x_ms_stub: str):
-        from DMR.LiveAPI.douyin import douyin_cache
+        from DMR.LiveAPI.douyin import douyin_utils
         try:
             import jsengine
             ctx = jsengine.jsengine()
-            user_agent = douyin_cache.get_headers()['user-agent']
+            user_agent = douyin_utils.get_headers()['user-agent']
             js_dom = f"""
 document = {{}}
 window = {{}}
@@ -43,4 +43,4 @@ navigator = {{
             return signature
         except Exception as e:
             pass
-        return "00000000"
+        return 0

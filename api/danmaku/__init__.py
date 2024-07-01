@@ -26,18 +26,22 @@ class site_class:
         elif platform == 'twitch':
             from .twitch import Twitch
             return Twitch
-        elif platform == 'douyin':
-            from .douyin import Douyin
-            return Douyin
         elif platform == 'youtube':
             from .youtube import Youtube
             return Youtube
-        else:
-            raise NotImplementedError(f'Platform {platform} is not supported.')
 
 # 使用自建API，DMC会实例化这个类然后调用start方法启动
 site_class_v2 = {
 }
+
+# 使用DMC API，但是使用了实例方法而不是类方法
+class site_class_v3:
+    @staticmethod
+    def get(platform):
+        if platform == 'douyin':
+            from .douyin import Douyin
+            return Douyin
+
 
 class DanmakuClient:
     def __init__(self, url, q: asyncio.Queue, **kwargs):
@@ -59,6 +63,9 @@ class DanmakuClient:
             self.__site_api = site_class.get(self.plat)
         elif site_class_v2.get(self.plat):
             self.__site_class = site_class_v2.get(self.plat)
+        elif site_class_v3.get(self.plat):
+            self.__hs = aiohttp.ClientSession()
+            self.__site_api = site_class_v3.get(self.plat)(**self.__kwargs)
         else:
             raise Exception(f'Error URL {url}')
 

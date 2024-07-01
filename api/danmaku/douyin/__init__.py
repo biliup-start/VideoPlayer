@@ -18,8 +18,8 @@ import websocket
 from google.protobuf import json_format
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from DMR.LiveAPI.douyin import douyin_cache
-from DMR.utils import split_url
+from DMR.LiveAPI.douyin import douyin_utils
+from DMR.utils import split_url, cookiestr2dict
 from .dy_pb2 import PushFrame, Response, ChatMessage
 from .utils import DouyinDanmakuUtils
 
@@ -47,17 +47,30 @@ def build_request_url(url: str) -> str:
     return new_url
 
 class Douyin:
-    headers = douyin_cache.get_headers()
     heartbeat = b':\x02hb'
     heartbeatInterval = 10
 
-    @staticmethod
-    async def get_ws_info(url, **kwargs):
+    def __init__(self, douyin_dm_cookies:str=None) -> None:
+        if not douyin_dm_cookies:
+            self.headers = douyin_utils.get_headers()
+        else:
+            try:
+                if douyin_dm_cookies.endswith('.json'):
+                    with open(douyin_dm_cookies, 'r', encoding='utf-8') as f:
+                        cookies = json.load(f)
+                else:
+                    cookies = cookiestr2dict(douyin_dm_cookies)
+                self.headers = douyin_utils.get_headers(extra_cookies=cookies)
+            except Exception as e:
+                logging.exception(f'解析抖音cookies错误: {e}, 使用默认cookies.')
+                self.headers = douyin_utils.get_headers()
+
+    async def get_ws_info(self, url, **kwargs):
         async with aiohttp.ClientSession() as session:
             _, room_id = split_url(url)
             async with session.get(
                     build_request_url(f"https://live.douyin.com/webcast/room/web/enter/?web_rid={room_id}"),
-                    headers=douyin_cache.get_headers(), timeout=5) as resp:
+                    headers=self.headers, timeout=5) as resp:
                 room_info = json.loads(await resp.text())['data']['data'][0]
                 USER_UNIQUE_ID = DouyinDanmakuUtils.get_user_unique_id()
                 VERSION_CODE = 180800 # https://lf-cdn-tos.bytescm.com/obj/static/webcast/douyin_live/7697.782665f8.js -> a.ry
@@ -79,6 +92,8 @@ class Douyin:
                     "identity": "audience"
                 }
                 signature = DouyinDanmakuUtils.get_signature(DouyinDanmakuUtils.get_x_ms_stub(sig_params))
+                if not signature:
+                    logging.exception("获取抖音弹幕URL签名失败.")
                 # logger.info(f"signature: {signature}")
                 webcast5_params = {
                     "room_id": room_info['id_str'],
@@ -112,8 +127,8 @@ class Douyin:
                 url = build_request_url(wss_url)
                 return url, []
 
-    @staticmethod
-    def decode_msg(data):
+    @classmethod
+    def decode_msg(cls, data):
         wss_package = PushFrame()
         wss_package.ParseFromString(data)
         log_id = wss_package.logId

@@ -9,12 +9,13 @@ try:
     from .BaseAPI import BaseAPI
 except ImportError:
     from BaseAPI import BaseAPI
+from DMR.utils import random_user_agent
 
-class douyin_cache():
+class douyin_utils():
     base_headers = {
         'authority': 'live.douyin.com',
         'Referer': "https://live.douyin.com/",
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.81 Safari/537.36 Edg/104.0.1293.54',
+        'user-agent': random_user_agent(),
     }
     cookies = {}
 
@@ -39,12 +40,15 @@ class douyin_cache():
     def get_cookies(cls) -> dict:
         if not cls.cookies:
             cls.refresh_cookies()
-        return cls.cookies
-
+        return cls.cookies.copy()
+    
     @classmethod
-    def get_headers(cls) -> dict:
+    def get_headers(cls, extra_cookies:dict=None) -> dict:
         headers = cls.base_headers.copy()
-        headers['cookie'] = '; '.join(f'{k}={v}' for k,v in cls.get_cookies().items())
+        cookies = cls.get_cookies()
+        if extra_cookies:
+            cookies.update(extra_cookies)
+        headers['cookie'] = '; '.join(f'{k}={v}' for k,v in cookies.items())
         return headers
 
 
@@ -52,7 +56,7 @@ class douyin(BaseAPI):
     def __init__(self,rid:str) -> None:
         self.web_rid = rid
         self.sess = requests.Session()
-        self.headers = douyin_cache.get_headers()
+        self.headers = douyin_utils.get_headers()
         if len(rid) == 19:
             self.real_rid = rid
         else:
