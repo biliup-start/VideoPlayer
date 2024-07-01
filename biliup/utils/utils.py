@@ -26,8 +26,21 @@ __all__ = [
     'uuid',
     'get_platform',
     'safe_filename',
+    'cookiestr2dict',
+    'random_user_agent',
 ]
 
+
+def random_user_agent() -> str:
+    version = random.randint(100, 120)
+    return f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{version}.0.0.0 Safari/537.36 Edg/{version}.0.0.0'
+
+def cookiestr2dict(cookie_str:str):
+    cookies_dict = {}
+    for cookie in cookie_str.split('; '):
+        key, value = cookie.split('=', 1)
+        cookies_dict[key] = value
+    return cookies_dict
 
 def get_platform(url:str) -> str:
     if 'bilibili.com' in url:
