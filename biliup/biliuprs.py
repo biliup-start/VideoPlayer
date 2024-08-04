@@ -49,6 +49,7 @@ class biliuprs():
         tag:str='',
         tid:int=65,
         title:str='',
+        timeout:int=None,
         logfile=None,
         **kwargs
     ):
@@ -91,7 +92,15 @@ class biliuprs():
         else:
             self.upload_proc = subprocess.Popen(upload_args, stdin=subprocess.PIPE, stdout=logfile, stderr=subprocess.STDOUT, bufsize=10**8)
         
-        self.upload_proc.wait()
+        try:
+            if timeout: 
+                self.upload_proc.wait(timeout=timeout)
+            else:
+                self.upload_proc.wait()
+        except subprocess.TimeoutExpired:
+            self.logger.warn(f'视频{video}上传超时，取消此次上传.')
+            self.upload_proc.kill()
+        
         return logfile
     
     def islogin(self):
@@ -116,7 +125,7 @@ class biliuprs():
         print(f'将 {self.account} 的登录信息保存到 {self.cookies}.')
 
     def upload_once(self, video, bvid=None, **config):
-        with tempfile.TemporaryFile() as logfile:
+        with tempfile.TemporaryFile(dir='.temp') as logfile:
             self.upload_proc = self.call_biliuprs(video=video, bvid=bvid, logfile=logfile, **config)
             if self.debug:
                 return True, ''
