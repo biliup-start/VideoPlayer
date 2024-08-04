@@ -74,13 +74,13 @@ class huya(BaseAPI):
             else:
                 response = self._get_response(mobile=True)
                 liveLineUrl = re.findall(r'"liveLineUrl":"([\s\S]*?)",', response)[0]
-                liveline = base64.b64decode(liveLineUrl).decode('utf-8')
+                liveline = base64.b64decode(liveLineUrl).decode('utf-8', errors='ignore')
                 if liveline and 'replay' not in liveline:
                     return True
                 else:
                     return False
         except Exception as e:
-            logging.exception(e)
+            logging.debug(e)
             return None
 
     def get_info(self):
