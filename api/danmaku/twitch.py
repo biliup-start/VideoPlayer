@@ -1,15 +1,17 @@
-import json, re, select, random, traceback
-from struct import pack, unpack
+import random
+import re
 
-import asyncio, aiohttp, zlib
+from DMR.utils import split_url
 
 
 class Twitch:
     heartbeat = "PING"
+    heartbeatInterval = 40
 
-    async def get_ws_info(url):
+    @staticmethod
+    async def get_ws_info(url, **kwargs):
         reg_datas = []
-        room_id = re.search(r"/([^/?]+)[^/]*$", url).group(1)
+        room_id = split_url(url)[1]
 
         reg_datas.append("CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership")
         reg_datas.append("PASS SCHMOOPIIE")
@@ -20,22 +22,21 @@ class Twitch:
 
         return "wss://irc-ws.chat.twitch.tv", reg_datas
 
+    @staticmethod
     def decode_msg(data):
-        # print(data)
-        # print('----------------')
         msgs = []
-        for d in data.splitlines():
-            try:
-                msg = {}
-                msg["name"] = re.search(r"display-name=([^;]+);", d).group(1)
-                msg["content"] = re.search(r"PRIVMSG [^:]+:(.+)", d).group(1)
-                # msg['msg_type']  = {'dgb': 'gift', 'chatmsg': 'danmaku',
-                # 'uenter': 'enter'}.get(msg['type'], 'other')
-                msg["msg_type"] = "danmaku"
-                c = re.search(r"color=#([a-zA-Z0-9]{6});", d)
-                msg["color"] = "ffffff" if c == None else c.group(1).lower()
-                msgs.append(msg)
-            except Exception as e:
-                # traceback.print_exc()
-                pass
+        if data is not None:
+            for d in data.splitlines():
+                msgt = {}
+                try:
+                    msgt["content"] = re.search(r"PRIVMSG [^:]+:(.+)", d).group(1)
+                    msgt["name"] = re.search(r"display-name=([^;]+);", d).group(1)
+                    # if msgt["content"][0] == '@': continue # 丢掉表情符号
+                    c = re.search(r"color=#([a-zA-Z0-9]{6});", d).group(1)
+                    msgt["color"] = c.lower()
+                    msgt["msg_type"] = "danmaku"
+                    # print(msgt)
+                    msgs.append(msgt)
+                except Exception:
+                    pass
         return msgs

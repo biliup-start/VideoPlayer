@@ -1,6 +1,7 @@
 from datetime import datetime
 import logging
 import re, asyncio, aiohttp
+import ssl
 
 # from .youtube import Youtube
 from DMR.utils import *
@@ -71,7 +72,14 @@ class DanmakuClient:
 
     async def init_ws(self):
         ws_url, reg_datas = await self.__site_api.get_ws_info(self.__url, **self.__kwargs)
-        self.__ws = await self.__hs.ws_connect(ws_url, headers=getattr(self.__site_api, 'headers', {}))
+        ctx = ssl.create_default_context()
+        ctx.set_ciphers('DEFAULT')
+        self.__ws = await self.__hs.ws_connect(
+            ws_url, 
+            ssl_context=ctx, 
+            headers=getattr(self.__site_api, 'headers', {}),
+            proxy=os.getenv('http_proxy') or os.getenv('https_proxy'),
+        )
         for reg_data in reg_datas:
             if type(reg_data) == str:
                 await self.__ws.send_str(reg_data)
