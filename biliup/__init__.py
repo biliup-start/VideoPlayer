@@ -119,6 +119,8 @@ class Uploader():
                     engine:str = task['engine']
                     if engine == 'biliuprs':
                         from .biliuprs import biliuprs as TargetUploader
+                    elif engine == 'subprocess':
+                        from .subprocess_uploader import SubprocessUploader as TargetUploader
                     else:
                         raise ValueError(f'Unknown engine: {engine}')
                     

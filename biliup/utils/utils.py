@@ -132,20 +132,10 @@ def replace_keywords(string:str, kw_info:dict=None, replace_invalid:bool=False):
         return match.group().lower()
 
     string = re.sub(r'(?<!\{)\{.*?\}(?!\})', to_lower, string)
-    result = string.format_map(dict_wapper(kw_info))
-    
-    # for k, v in kw_info.items():
-    #     if isinstance(v, datetime):
-    #         for kw in ['year','month','day','hour','minute','second']:
-    #             if kw != 'year':
-    #                 string = string.replace('{'+f'{kw}'.upper()+'}', str(getattr(v,kw)).zfill(2))
-    #             else:
-    #                 string = string.replace('{'+f'{kw}'.upper()+'}', str(getattr(v,kw)))
-    #     elif isinstance(v, dict):
-    #         for kw in v.keys():
-    #             string = string.replace('{'+f'{k}.{kw}'.upper()+'}', tostr(v[kw]))
-    #     else:
-    #         string = string.replace('{'+f'{k}'.upper()+'}', tostr(v))
+    if isinstance(kw_info, dict):
+        kw_info = dict_wapper(kw_info)
+
+    result = string.format_map(kw_info)
     
     return result
 

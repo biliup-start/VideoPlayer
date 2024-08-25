@@ -13,11 +13,9 @@ class SimpleDanmaku():
         self.color = color
         self.content = content
 
-    def todict(self):
-        return {
-            'time': self.time,
-            'dtype': self.dtype,
-            'uname': self.uname,
-            'color': self.color,
-            'content': self.content
-        }
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def __iter__(self):
+        for key, value in self.__dict__.items():
+            yield key, value

@@ -10,11 +10,22 @@ import subprocess
 
 from biliup.utils import replace_keywords, ToolsList, VideoInfo
 
+
 class biliuprs():
-    def __init__(self, cookies:str=None, account:str=None, debug=False, biliup:str=None, **kwargs) -> None:
+
+    def __init__(self, 
+                 cookies:str=None, 
+                 account:str=None, 
+                 task_upload_lock:bool=True,
+                 debug=False, 
+                 biliup:str=None, 
+                 **kwargs,
+    ) -> None:
         self.biliup = biliup if biliup else ToolsList.get('biliup')
+
         if not (cookies or account):
             raise ValueError('cookies or account must be set.')
+        
         if cookies is None:
             self.account = account
             self.cookies = f'biliup/{account}.json'
@@ -22,14 +33,22 @@ class biliuprs():
             self.account = os.path.basename(cookies).split('.')[0]
             self.cookies = cookies
         os.makedirs(os.path.dirname(self.cookies), exist_ok=True)
+
+        self.task_upload_lock = task_upload_lock
         self.debug = debug
+
         self.base_args = [self.biliup, '-u', self.cookies]
         self.task_info = {}
         self._upload_lock = threading.Lock()
+        self._upload_procs = {}
         self.logger = logging.getLogger(__name__)
+        self.stoped = False
 
         if not self.islogin():
             self.login()
+
+    def __del__(self):
+        self.stop()
 
     def call_biliuprs(self, 
         video, 
@@ -41,7 +60,7 @@ class biliuprs():
         dtime:int=0,
         dynamic:str='',
         interactive:int=0,
-        line:str='kodo',
+        line:str=None,
         limit:int=3,
         no_reprint:int=1,
         open_elec:int=1,
@@ -67,7 +86,6 @@ class biliuprs():
             '--dtime', dtime,
             '--dynamic', dynamic,
             '--interactive', interactive,
-            '--line', line,
             '--limit', limit,
             '--no-reprint', no_reprint,
             '--open-elec', open_elec,
@@ -76,6 +94,9 @@ class biliuprs():
             '--tid', tid,
             '--title', title,
         ]
+        if line:
+            upload_args += ['--line', line]
+
         if isinstance(video, str):
             upload_args += [video]
         elif isinstance(video, list):
@@ -88,18 +109,21 @@ class biliuprs():
             logfile = sys.stdout
 
         if self.debug:
-            self.upload_proc = subprocess.Popen(upload_args, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=subprocess.STDOUT, bufsize=10**8)
+            upload_proc = subprocess.Popen(upload_args, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=subprocess.STDOUT, bufsize=10**8)
         else:
-            self.upload_proc = subprocess.Popen(upload_args, stdin=subprocess.PIPE, stdout=logfile, stderr=subprocess.STDOUT, bufsize=10**8)
+            upload_proc = subprocess.Popen(upload_args, stdin=subprocess.PIPE, stdout=logfile, stderr=subprocess.STDOUT, bufsize=10**8)
         
         try:
+            self._upload_procs[upload_proc.pid] = upload_proc
             if timeout: 
-                self.upload_proc.wait(timeout=timeout)
+                upload_proc.wait(timeout=timeout)
             else:
-                self.upload_proc.wait()
+                upload_proc.wait()
         except subprocess.TimeoutExpired:
             self.logger.warn(f'视频{video}上传超时，取消此次上传.')
-            self.upload_proc.kill()
+        finally:
+            upload_proc.kill()
+            self._upload_procs.pop(upload_proc.pid)
         
         return logfile
     
@@ -126,7 +150,7 @@ class biliuprs():
 
     def upload_once(self, video, bvid=None, **config):
         with tempfile.TemporaryFile(dir='.temp') as logfile:
-            self.upload_proc = self.call_biliuprs(video=video, bvid=bvid, logfile=logfile, **config)
+            self.call_biliuprs(video=video, bvid=bvid, logfile=logfile, **config)
             if self.debug:
                 return True, ''
         
@@ -144,39 +168,6 @@ class biliuprs():
             return True, out_bvid
         else:
             return False, log
-        
-    def upload_batch(self, video:list, video_info:list=None, config=None, **kwargs):
-        video_info = video_info[0]
-        config = config.copy()
-        
-        if config.get('title'):
-            config['title'] = replace_keywords(config['title'], video_info)
-        if config.get('desc'):
-            config['desc'] = replace_keywords(config['desc'], video_info)
-        if config.get('dynamic'):
-            config['dynamic'] = replace_keywords(config['dynamic'], video_info)
-        
-        return self.upload_once(video, bvid=None, **config)
-
-    def upload_one(self, video:str, video_info:str=None, config=None, **kwargs):
-        config = config.copy()
-        
-        if config.get('title'):
-            config['title'] = replace_keywords(config['title'], video_info)
-        if config.get('desc'):
-            config['desc'] = replace_keywords(config['desc'], video_info)
-        if config.get('dynamic'):
-            config['dynamic'] = replace_keywords(config['dynamic'], video_info)
-        
-        if self._upload_lock.locked():
-            self.logger.warn('实时上传速度慢于录制速度，可能导致上传队列阻塞！')
-        
-        with self._upload_lock:
-            status, info = self.upload_once(video=video, bvid=self.task_info.get('bvid'), **config)
-            if status:
-                self.task_info['bvid'] = info
-            
-        return status, info
     
     def format_config(self, config, video_info=None, replace_invalid=False):
         config = config.copy()
@@ -204,19 +195,17 @@ class biliuprs():
                 import requests
                 try:
                     resp = requests.get(config['cover'], headers={'User-Agent': 'Mozilla/5.0'}, timeout=5.0)
-                    if resp.status_code != 200:
-                        raise Exception(f'HTTP Error {resp.status_code}')
-                    else:
-                        cover_filename = f'.temp/biliuprs_cover_{int(time.time())+86400}.png'
-                        with open(cover_filename, 'wb') as f:
-                            f.write(resp.content)
-                        config['cover'] = cover_filename
+                    resp.raise_for_status()
+                    cover_filename = f'.temp/biliuprs_cover_{int(time.time())+86400}.png'
+                    with open(cover_filename, 'wb') as f:
+                        f.write(resp.content)
+                    config['cover'] = cover_filename
+
                 except Exception as e:
                     logging.error(f'视频 {config["title"]} 封面图片下载失败: {e}, 跳过设置.')
                     config['cover'] = ''
-            
         return config
-    
+
     def upload(self, files:list[VideoInfo], **kwargs):
         if not isinstance(files, list):
             files = [files]
@@ -225,26 +214,50 @@ class biliuprs():
         if self._upload_lock.locked():
             self.logger.warn('上传速度慢于录制速度，可能导致上传队列阻塞！')
         
-        with self._upload_lock:
-            # status, bvid = True, 'BV0000000000'
-            video_files = [f.path for f in files]
-            status, bvid = self.upload_once(video=video_files, bvid=self.task_info.get('bvid'), **config)
-            if status:
-                self.task_info['bvid'] = bvid
-            
+        video_files = [f.path for f in files]
+        status, bvid = False, ''
+
+        if self.task_upload_lock:       # 使用串行上传
+            with self._upload_lock:
+                status, bvid = self.upload_once(video=video_files, bvid=self.task_info.get('bvid'), **config)
+                if status:
+                    self.task_info['bvid'] = bvid
+
+        else:                           # 完全并行上传
+            if self.task_info.get('bvid') is None:      # 说明第一个任务还未上传，需要阻塞
+                self._upload_lock.acquire()
+                lock_released = False
+                try:
+                    if self.task_info.get('bvid'):      # 说明第一个任务已经上传完成
+                        self._upload_lock.release()
+                        lock_released = True
+                    status, bvid = self.upload_once(video=video_files, bvid=None, **config)
+                    if status:
+                        self.task_info['bvid'] = bvid
+                finally:
+                    if not lock_released:
+                        self._upload_lock.release()
+
+            else:
+                status, bvid = self.upload_once(video=video_files, bvid=self.task_info.get('bvid'), **config)
+                if status:
+                    self.task_info['bvid'] = bvid
+
         return status, bvid
-        
+
     def end_upload(self):
         self.task_info = {}
         self.logger.debug('realtime upload end.')
 
     def stop(self):
+        self.stoped = True
         try:
-            if hasattr(self, 'upload_proc') and self.upload_proc.poll() is None:
+            if not self._upload_procs:
                 self.logger.warn('上传提前终止，可能需要重新上传.')
-            self.upload_proc.kill()
-            out, _ = self.upload_proc.communicate(timeout=2.0)
-            out = out.decode('utf-8')
-            self.logger.debug(out)
+            for _, proc in self._upload_procs.items():
+                proc.kill()
+                out, _ = proc.communicate(timeout=2.0)
+                out = out.decode('utf-8')
+                self.logger.debug(out)
         except Exception as e:
             self.logger.debug(e)
