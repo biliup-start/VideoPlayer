@@ -28,6 +28,7 @@ __all__ = [
     'safe_filename',
     'cookiestr2dict',
     'random_user_agent',
+    'retry_safe',
 ]
 
 
@@ -47,6 +48,17 @@ def get_platform(url:str) -> str:
         return 'bilibili'
     elif 'youtube.com' in url:
         return 'youtube'
+    
+def retry_safe(func, max_retries=5, sleep_interval=1):
+    if max_retries <= 0:
+        max_retries = 2**32-1
+    for idx in range(max_retries):
+        ret = func()
+        if ret:
+            return ret
+        else:
+            time.sleep(sleep_interval)
+    return None
 
 def rename_safe(src:str, dst:str, retry:int=10):
     dst:str = dst
