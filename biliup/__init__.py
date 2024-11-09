@@ -147,13 +147,16 @@ class Uploader():
                     status, info = False, e
                     self.logger.exception(e)
                 
-                if status:
+                retry -= 1
+                if status or self.stoped:
+                    break
+                elif retry < 0:
+                    self.logger.warning(f'上传 {[f.path for f in files]} 时出现错误，跳过上传.')
                     break
                 else:
-                    self.logger.warn(f'上传 {[f.path for f in files]} 时出现错误，即将重传.')
+                    self.logger.warning(f'上传 {[f.path for f in files]} 时出现错误，即将重传.')
                     self.logger.debug(info)
                     time.sleep(60)
-                    retry -= 1
             
             if status:
                 self._gather(task, 'info', desc=info)
@@ -171,4 +174,8 @@ class Uploader():
             self._gather(task, 'error', desc=e)
 
     def stop(self):
-        pass
+        self.stoped = True
+        self.upload_executors.shutdown(wait=False)
+        for upload_group in self._uploader_pool:
+            self._uploader_pool[upload_group]['class'].stop()
+        self.logger.info('Uploader stopped.')
