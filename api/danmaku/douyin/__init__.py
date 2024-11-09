@@ -26,6 +26,9 @@ from .utils import DouyinDanmakuUtils
 import aiohttp
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
+logger = logging.getLogger(__name__)
+
+
 def build_request_url(url: str) -> str:
     parsed_url = urlparse(url)
     existing_params = parse_qs(parsed_url.query)
@@ -62,7 +65,7 @@ class Douyin:
                     cookies = cookiestr2dict(douyin_dm_cookies)
                 self.headers = douyin_utils.get_headers(extra_cookies=cookies)
             except Exception as e:
-                logging.exception(f'解析抖音cookies错误: {e}, 使用默认cookies.')
+                logger.exception(f'解析抖音cookies错误: {e}, 使用默认cookies.')
                 self.headers = douyin_utils.get_headers()
 
     async def get_ws_info(self, url, **kwargs):
@@ -93,7 +96,7 @@ class Douyin:
                 }
                 signature = DouyinDanmakuUtils.get_signature(DouyinDanmakuUtils.get_x_ms_stub(sig_params))
                 if not signature:
-                    logging.exception("获取抖音弹幕URL签名失败.")
+                    logger.exception("获取抖音弹幕URL签名失败.")
                 # logger.info(f"signature: {signature}")
                 webcast5_params = {
                     "room_id": room_info['id_str'],

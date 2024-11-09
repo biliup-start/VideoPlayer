@@ -11,6 +11,9 @@ except ImportError:
     from BaseAPI import BaseAPI
 from DMR.utils import random_user_agent
 
+logger = logging.getLogger(__name__)
+
+
 class douyin_utils():
     base_headers = {
         'authority': 'live.douyin.com',
@@ -27,14 +30,14 @@ class douyin_utils():
                 assert response.cookies.get('__ac_nonce')
                 cls.cookies['__ac_nonce'] = response.cookies.get('__ac_nonce')
             except Exception as e:
-                logging.exception(f'获取抖音cookies错误: {e}')
+                logger.exception(f'获取抖音cookies错误: {e}')
             
             try:
                 response = sess.get(f'https://live.douyin.com',headers=cls.base_headers,timeout=5)
                 assert response.cookies.get('ttwid')
                 cls.cookies['ttwid'] = response.cookies.get('ttwid')
             except Exception as e:
-                logging.exception(f'获取抖音cookies错误: {e}')
+                logger.exception(f'获取抖音cookies错误: {e}')
 
     @classmethod
     def get_cookies(cls) -> dict:
@@ -53,7 +56,7 @@ class douyin_utils():
 
 
 class douyin(BaseAPI):
-    def __init__(self,rid:str) -> None:
+    def __init__(self, rid:str) -> None:
         self.web_rid = rid
         self.sess = requests.Session()
         self.headers = douyin_utils.get_headers()
@@ -103,7 +106,7 @@ class douyin(BaseAPI):
             this_quality = qualities[-1]['sdk_key']
             url_dict = extra_data['data']
             for stype, url in url_dict[this_quality]['main'].items():
-                if not url.startswith('http'):
+                if not str(url).startswith('http'):
                     continue
                 real_urls.append({
                     'quality': this_quality,
@@ -111,7 +114,7 @@ class douyin(BaseAPI):
                     'stream_url': url,
                 })
         except Exception as e:
-            logging.debug(e)
+            logger.debug(e)
             url = list(stream_info['flv_pull_url'].items())[0]
             real_urls = [{
                     'quality': url[0],
@@ -132,7 +135,7 @@ class douyin(BaseAPI):
             selected_urls.append(uri)
         
         if not selected_urls:
-            logging.warning(f'抖音{self.web_rid}没有{stream_type}流，将使用默认选项.')
+            logger.warning(f'抖音{self.web_rid}没有{stream_type}流，将使用默认选项.')
             return random.choice(avail_urls)['stream_url']
         else:
             return random.choice(selected_urls)
