@@ -23,24 +23,20 @@ class DouyinDanmakuUtils:
     @staticmethod
     def get_signature(x_ms_stub: str):
         from DMR.LiveAPI.douyin import douyin_utils
-        try:
-            import jsengine
-            ctx = jsengine.jsengine()
-            user_agent = douyin_utils.get_headers()['user-agent']
-            js_dom = f"""
+        import jsengine
+        ctx = jsengine.jsengine()
+        user_agent = douyin_utils.get_headers()['user-agent']
+        js_dom = f"""
 document = {{}}
 window = {{}}
 navigator = {{
-  'userAgent': '{user_agent}'
+'userAgent': '{user_agent}'
 }}
 """.strip()
-            js_enc = DouyinDanmakuUtils.load_webmssdk('webmssdk.js')
-            final_js = js_dom + js_enc
-            ctx.eval(final_js)
-            function_caller = f"get_sign('{x_ms_stub}')"
-            signature = ctx.eval(function_caller)
-            # print("signature: ", signature)
-            return signature
-        except Exception as e:
-            pass
-        return 0
+        js_enc = DouyinDanmakuUtils.load_webmssdk('webmssdk.js')
+        final_js = js_dom + js_enc
+        ctx.eval(final_js)
+        function_caller = f"get_sign('{x_ms_stub}')"
+        signature = ctx.eval(function_caller)
+        # print("signature: ", signature)
+        return signature

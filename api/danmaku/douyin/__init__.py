@@ -94,9 +94,12 @@ class Douyin:
                     "ac": "",
                     "identity": "audience"
                 }
-                signature = DouyinDanmakuUtils.get_signature(DouyinDanmakuUtils.get_x_ms_stub(sig_params))
-                if not signature:
-                    logger.exception("获取抖音弹幕URL签名失败.")
+                try:
+                    signature = DouyinDanmakuUtils.get_signature(DouyinDanmakuUtils.get_x_ms_stub(sig_params))
+                except Exception as e:
+                    signature = 0
+                    logger.exception('获取抖音弹幕签名失败:')
+                    logger.exception(e)
                 # logger.info(f"signature: {signature}")
                 webcast5_params = {
                     "room_id": room_info['id_str'],

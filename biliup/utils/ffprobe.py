@@ -22,6 +22,7 @@ class FFprobe():
             cls.ffprobe(),
             '-i', fpath,
             '-print_format','json',
+            '-select_streams', 'v:0',
             '-show_format','-show_streams',
             '-v','quiet'
             ])

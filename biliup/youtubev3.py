@@ -41,21 +41,39 @@ class youtubev3():
 
     VALID_PRIVACY_STATUSES = ("public", "private", "unlisted")
 
-    def __init__(self, cookies:str=None, credential_args:dict=None, **kwargs) -> None:
-        self.cookies = cookies
+    def __init__(
+        self,
+        client_secrets,
+        account:str=None,
+        retry_resume:int=0,
+        credential_args:list=None, 
+        **kwargs
+    ) -> None:
+        if not os.path.exists(client_secrets):
+            raise FileNotFoundError(f"Client secrets file not found: {client_secrets}")
+        self.client_secrets = client_secrets
+
+        if account.endswith('.json'):
+            self.account_oauth = account
+        else:
+            self.account_oauth = f'.login_info/{account}.json'
+
+        self.retry_resume = retry_resume
+
         self.logger = logging.getLogger('DMR')
-        self.credential_args = credential_args
+        self.auth_flags = argparser.parse_args(args=credential_args)
+
+        self._get_authenticated_service()
 
     def _get_authenticated_service(self):
-        flow = flow_from_clientsecrets(self.cookies,
-                                    scope=self.YOUTUBE_UPLOAD_SCOPE,
-                                    message=self.MISSING_CLIENT_SECRETS_MESSAGE)
-
-        storage = Storage(f".temp/{uuid(16)}-oauth2.json")
+        storage = Storage(self.account_oauth)
         credentials = storage.get()
 
         if credentials is None or credentials.invalid:
-            credentials = run_flow(flow, storage, self.credential_args)
+            flow = flow_from_clientsecrets(self.client_secrets,
+                                        scope=self.YOUTUBE_UPLOAD_SCOPE,
+                                        message=self.MISSING_CLIENT_SECRETS_MESSAGE)
+            credentials = run_flow(flow, storage, self.auth_flags)
 
         return build(self.YOUTUBE_API_SERVICE_NAME, self.YOUTUBE_API_VERSION,
                     credentials=credentials)
@@ -82,13 +100,15 @@ class youtubev3():
             if error is not None:
                 self.logger.error(error)
                 retry += 1
-                if retry > self.MAX_RETRIES:
+                if retry > self.retry_resume:
                     return False, error
 
-                max_sleep = 2 ** retry
+                max_sleep = min(5*retry, 60)
                 sleep_seconds = random.random() * max_sleep
                 self.logger.debug(f"Sleeping {sleep_seconds} seconds and then retrying...")
                 time.sleep(sleep_seconds)
+            else:
+                retry = 0
         
         return False, 'Unknown error occurred.'
     
@@ -96,14 +116,14 @@ class youtubev3():
         config = config.copy()
 
         if config.get('raw_upload_body'):
-            video_info = replace_keywords(config['raw_upload_body'], video_info, replace_invalid=replace_invalid)
+            config['raw_upload_body'] = replace_keywords(config['raw_upload_body'], video_info, replace_invalid=replace_invalid)
             return config
 
         if config.get('title'):
             config['title'] = replace_keywords(config['title'], video_info, replace_invalid=replace_invalid)
-            if len(config['title']) > 80:
-                config['title'] = config['title'][:80]
-                self.logger.warn(f'视频标题超过80字符，已自动截取为: {config["title"]}.')
+            if len(config['title']) > 100:
+                config['title'] = config['title'][:100]
+                self.logger.warning(f'视频标题 {config["title"]} 超过100字符，已自动截取为: {config["title"]}.')
         if config.get('desc'):
             config['desc'] = replace_keywords(config['desc'], video_info, replace_invalid=replace_invalid)
         if config.get('tag'):
@@ -118,7 +138,7 @@ class youtubev3():
         tag: str=None,
         category: str="20",
         privacy: str="public",
-        raw_upload_body: dict=None,
+        raw_upload_body: str=None,
     ):
         youtube = self._get_authenticated_service()
 
@@ -137,6 +157,8 @@ class youtubev3():
                     "privacyStatus": privacy
                 }
             }
+
+        self.logger.debug(f"Upload config: {video}-{body}")
 
         insert_request = youtube.videos().insert(
             part=",".join(body.keys()),
@@ -160,5 +182,5 @@ class youtubev3():
             except HttpError as e:
                 status= False
                 message += f"An HTTP error {e.resp.status} occurred:{e.content}\n"
-            
+
         return status, message.strip()

@@ -121,6 +121,8 @@ class Uploader():
                         from .biliuprs import biliuprs as TargetUploader
                     elif engine == 'subprocess':
                         from .subprocess_uploader import SubprocessUploader as TargetUploader
+                    elif engine == 'youtubev3':
+                        from .youtubev3 import youtubev3 as TargetUploader
                     else:
                         raise ValueError(f'Unknown engine: {engine}')
                     
@@ -136,7 +138,7 @@ class Uploader():
             status = info = None
             while retry >= 0:
                 try:
-                    self.logger.info(f"正在上传 {[f.path for f in files]} 至 {upload_args['account']}")
+                    self.logger.info(f"正在上传 {[f.path for f in files]} 至 {upload_args.get('account')}")
                     # logging.debug(task)
                     status, info = target_uploader.upload(files=files, **upload_args)
                 except KeyboardInterrupt:
