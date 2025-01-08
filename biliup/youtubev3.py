@@ -13,7 +13,7 @@ from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
 from oauth2client.tools import argparser, run_flow
 
-from DMR.utils import uuid, replace_keywords
+from DMR.utils import uuid, replace_keywords, concat_video_ffmpeg, get_tempfile
 
 class youtubev3():
     # Explicitly tell the underlying HTTP transport library not to retry, since
@@ -139,6 +139,7 @@ class youtubev3():
         category: str="20",
         privacy: str="public",
         raw_upload_body: str=None,
+        **kwargs,
     ):
         youtube = self._get_authenticated_service()
 
@@ -168,19 +169,32 @@ class youtubev3():
 
         return self._resumable_upload(insert_request)
 
-    def upload(self, files:list, **kwargs):
+    def upload(self, files:list, concat_video=False, **kwargs):
+        if isinstance(files, list) and concat_video:
+            old_name, old_ext = os.path.splitext(os.path.basename(files[0].path))
+            new_video_name = get_tempfile(expire=86400*2, prefix=old_name, suffix=old_ext)
+            new_video = concat_video_ffmpeg(files, new_video_name)
+            files = [new_video]
+            concat_video = True
+        else:
+            concat_video = False
         if not isinstance(files, list):
             files = [files]
         
-        status, message = False, ''
+        status, message = True, ''
         for file in files:
             try:
                 config = self.format_config(kwargs, file)
+                # sts, msg = True, f'skip {file}, config {config}'
                 sts, msg = self.upload_one(video=file, **config)
                 status = status and sts
                 message += msg+'\n'
             except HttpError as e:
                 status= False
                 message += f"An HTTP error {e.resp.status} occurred:{e.content}\n"
+
+        if concat_video:
+            self.logger.debug(f"Remove temp file: {new_video_name}")
+            os.remove(new_video_name)
 
         return status, message.strip()

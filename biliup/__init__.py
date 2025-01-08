@@ -63,6 +63,7 @@ class Uploader():
                 if expire > 0 and time.time() - self._uploader_pool[upload_group]['ctime'] > expire:
                     self._uploader_pool[upload_group]['class'].stop()
                     self._uploader_pool.pop(upload_group)
+                    self.logger.debug(f'Uploader {upload_group} expired and removed.')
 
     def add_task(self, msg:PipeMessage):
         with self._lock:
@@ -130,7 +131,7 @@ class Uploader():
                     self._uploader_pool[upload_group] = {
                         'class': target_uploader,
                         'ctime': time.time(),
-                        'expire': task.get('expire', 86400)
+                        'expire': task.get('expire', 7*24*3600)
                     }
 
             files = task['files']

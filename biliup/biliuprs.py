@@ -120,7 +120,7 @@ class biliuprs():
             else:
                 upload_proc.wait()
         except subprocess.TimeoutExpired:
-            self.logger.warn(f'视频{video}上传超时，取消此次上传.')
+            self.logger.warning(f'视频{video}上传超时，取消此次上传.')
         finally:
             upload_proc.kill()
             self._upload_procs.pop(upload_proc.pid)
@@ -176,11 +176,11 @@ class biliuprs():
             config['title'] = replace_keywords(config['title'], video_info, replace_invalid=replace_invalid)
             if len(config['title']) > 80:
                 config['title'] = config['title'][:80]
-                self.logger.warn(f'视频标题超过80字符，已自动截取为: {config["title"]}.')
+                self.logger.warning(f'视频标题超过80字符，已自动截取为: {config["title"]}.')
         if config.get('desc'):
             config['desc'] = replace_keywords(config['desc'], video_info, replace_invalid=replace_invalid)
             if len(config['desc']) > 250:
-                self.logger.warn(f'视频简介超过250字符，可能导致实时上传失败.')
+                self.logger.warning(f'视频简介超过250字符，可能导致实时上传失败.')
         if config.get('dynamic'):
             config['dynamic'] = replace_keywords(config['dynamic'], video_info, replace_invalid=replace_invalid)
         if config.get('tag'):
@@ -212,7 +212,7 @@ class biliuprs():
         config = self.format_config(kwargs, files[0])
 
         if self._upload_lock.locked():
-            self.logger.warn('上传速度慢于录制速度，可能导致上传队列阻塞！')
+            self.logger.warning('上传速度慢于录制速度，可能导致上传队列阻塞！')
         
         video_files = [f.path for f in files]
         status, bvid = False, ''
@@ -252,8 +252,8 @@ class biliuprs():
     def stop(self):
         self.stoped = True
         try:
-            if not self._upload_procs:
-                self.logger.warn('上传提前终止，可能需要重新上传.')
+            if self._upload_procs:
+                self.logger.warninging('上传提前终止，可能需要重新上传.')
             for _, proc in self._upload_procs.items():
                 proc.kill()
                 out, _ = proc.communicate(timeout=2.0)

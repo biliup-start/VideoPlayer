@@ -7,7 +7,7 @@ import os
 import glob
 
 from easydict import EasyDict as edict
-from os.path import exists, abspath, splitext
+from os.path import exists, abspath, splitext, join
 from uuid import uuid1
 from datetime import datetime
 
@@ -29,8 +29,22 @@ __all__ = [
     'cookiestr2dict',
     'random_user_agent',
     'retry_safe',
+    'get_tempfile',
 ]
 
+
+def get_tempfile(expire:int=86400, prefix:str=None, suffix:str=None) -> str:
+    if not suffix:
+        suffix = ''
+    else:
+        suffix = f'.{suffix}' if suffix[0] != '.' else suffix
+    if not prefix:
+        prefix = ''
+    else:
+        prefix = f'{prefix}-'
+    if not exists('.temp'):
+        os.makedirs('.temp')
+    return abspath(join('.temp', f'{prefix}{uuid()}-{int(time.time())+expire}{suffix}'))
 
 def random_user_agent() -> str:
     version = random.randint(100, 120)

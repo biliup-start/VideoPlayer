@@ -1,14 +1,17 @@
 import subprocess
+import logging
 
 from DMR.utils import VideoInfo, replace_keywords
 
 
 class SubprocessUploader:
-    def __init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         self.procs = {}
+        self.logger = logging.getLogger(__name__)
 
     def call_subprocess(self, file, command, timeout=None, **kwargs):
         cmds = [replace_keywords(str(x), file) for x in command]
+        self.logger.debug(f'Subprocess uploader: {cmds}')
         proc = subprocess.Popen(cmds)
         self.procs[proc.pid] = proc
         status, message = False, ''
@@ -31,7 +34,7 @@ class SubprocessUploader:
         if not isinstance(files, list):
             files = [files]
 
-        status, message = False, ''
+        status, message = True, ''
         for file in files:
             try:
                 sts, msg = self.call_subprocess(file, **kwargs)
