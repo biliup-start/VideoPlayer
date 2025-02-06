@@ -113,7 +113,7 @@ class Uploader():
             upload_group:str = task['upload_group']
 
             with self._lock:
-                if not stateless and upload_group in self._uploader_pool:
+                if upload_group in self._uploader_pool:
                     target_uploader = self._uploader_pool[upload_group]['class']
                     self._uploader_pool[upload_group]['ctime'] = time.time()
                 else:
@@ -166,11 +166,7 @@ class Uploader():
             else:
                 self._gather(task, 'error', desc=info)
 
-            if stateless:
-                with self._lock:
-                    self._uploader_pool.pop(upload_group)
-            else:
-                self._free_uploader_pool()
+            self._free_uploader_pool()
         
         except Exception as e:
             self.logger.exception(e)
