@@ -80,7 +80,7 @@ class huya(BaseAPI):
                 else:
                     return False
         except Exception as e:
-            logging.debug(e)
+            # logging.debug(e)
             return None
 
     def get_info(self):
