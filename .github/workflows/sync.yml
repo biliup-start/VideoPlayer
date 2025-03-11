@@ -35,11 +35,11 @@ jobs:
         sed -i "s/from DMR.utils/from biliup.utils/g" biliup/__init__.py
 
     - name: Check for changes
-      id: changes
       if: github.event_name == 'schedule'
       run: |
-        git diff --name-only | grep api/ && echo "api_changed=true" >> $GITHUB_ENV || echo "api_changed=false" >> $GITHUB_ENV
-        git diff --name-only | grep -v 'biliup/cookies.json' | grep biliup/ && echo "biliup_changed=true" >> $GITHUB_ENV || echo "biliup_changed=false" >> $GITHUB_ENV
+        git add .  # 暂存所有变更
+        git diff --staged --name-only | grep api/ && echo "api_changed=true" >> $GITHUB_ENV || echo "api_changed=false" >> $GITHUB_ENV
+        git diff --staged --name-only | grep -v 'biliup/cookies.json' | grep biliup/ && echo "biliup_changed=true" >> $GITHUB_ENV || echo "biliup_changed=false" >> $GITHUB_ENV
 
     - name: Get latest release tag
       id: latesttag
