@@ -58,7 +58,7 @@ class bilibili(BaseAPI):
                 watch_cookies = {c['name']: c['value'] for c in cookies['cookie_info']['cookies']}
                 logger.info(f'正在使用 {bili_watch_cookies} 的cookies登录B站.')
             except Exception as e:
-                logger.warn(f'B站观看cookies设置错误:{e}，即将使用无登录模式.')
+                logger.warning(f'B站观看cookies设置错误:{e}，即将使用无登录模式.')
 
         res = self._get_response()
         room_id = res['data']['room_id']
@@ -97,7 +97,7 @@ class bilibili(BaseAPI):
             raise RuntimeError(f'bilibili直播流获取错误: {e}')
         
         if http_info['current_qn'] != max(http_info['accept_qn']):
-            logger.warn('未登录B站账号，无法录制原画，将录制最低画质直播（480P）.')
+            logger.warning('未登录B站账号，无法录制原画，将录制最低画质直播（480P）.')
         
         return real_urls
     
@@ -117,21 +117,33 @@ class bilibili(BaseAPI):
             selected_urls.append(uri)
         
         if not selected_urls:
-            logger.warn(f'Bilibili{self.rid}没有满足 {stream_cdn},{stream_type} 的流，将使用默认选项.')
+            logger.warning(f'Bilibili{self.rid}没有满足 {stream_cdn},{stream_type} 的流，将使用默认选项.')
             return random.choice(avail_urls)['stream_url']
         else:
             return random.choice(selected_urls)
 
     def get_info(self) -> tuple:
-        resp = self.sess.get(f'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id={self.rid}', headers=self.header, timeout=5).json()
-        data = resp['data']
+        try:
+            resp = self.sess.get(f'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id={self.rid}', headers=self.header, timeout=5).json()
+            data = resp['data']
+            
+            title = data['room_info']['title']
+            uname = data['anchor_info']['base_info']['uname']
+            face_url = data['anchor_info']['base_info']['face']
+            cover_url = data['room_info']['cover']
         
-        title = data['room_info']['title']
-        uname = data['anchor_info']['base_info']['uname']
-        face_url = data['anchor_info']['base_info']['face']
-        keyframe_url = data['room_info']['keyframe']
+        # 海外服务器可能报错就用下面的方法
+        except Exception as e:
+            resp = self.sess.get(f'https://api.live.bilibili.com/room/v1/Room/get_info?room_id={self.rid}', headers=self.header, timeout=5).json()
+            title = resp['data']['title']
+            cover_url = resp['data']['user_cover']
 
-        return title, uname, face_url, keyframe_url
+            resp = self.sess.get(f'https://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid={self.rid}', headers=self.header, timeout=5).json()
+            info = resp['data']['info']
+            uname = info['uname']
+            face_url = info['face']
+
+        return title, uname, face_url, cover_url
     
     def get_stream_header(self) -> dict:
         return self.header
